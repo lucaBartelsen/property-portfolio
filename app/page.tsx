@@ -25,7 +25,7 @@ import { Property } from '../lib/types';
 
 export default function HomePage() {
   const theme = useMantineTheme();
-  const [opened, setOpened] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { state, dispatch } = usePropertyStore();
   
   const [activeTab, setActiveTab] = useState('portfolio');
@@ -77,6 +77,12 @@ export default function HomePage() {
     setDetailView({ type, propertyId: id });
   };
 
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    // Mobile Nav schließen, wenn ein Tab ausgewählt wird
+    setMobileNavOpen(false);
+  };
+
   const renderContent = () => {
     // Wenn eine Detailansicht aktiv ist
     if (detailView) {
@@ -117,23 +123,18 @@ export default function HomePage() {
                   { maxWidth: 1200, cols: 2, spacing: 'md' },
                   { maxWidth: 800, cols: 1, spacing: 'sm' },
                 ]}
-                sx={{
-                  width: '100%',
-                  margin: '0 auto',
-                }}
               >
                 {state.properties.map((property, index) => (
-                  <Box key={property.id} sx={{ width: '100%' }}>
-                    <PropertyCard
-                      property={property}
-                      isActive={index === state.activePropertyIndex}
-                      onEdit={() => handleEditProperty(property.id)}
-                      onDelete={() => handleDeleteProperty(property.id)}
-                      onViewOverview={() => handleViewPropertyDetails('overview', property.id)}
-                      onViewCashflow={() => handleViewPropertyDetails('cashflow', property.id)}
-                      onViewYearTable={() => handleViewPropertyDetails('yeartable', property.id)}
-                    />
-                  </Box>
+                  <PropertyCard
+                    key={property.id}
+                    property={property}
+                    isActive={index === state.activePropertyIndex}
+                    onEdit={() => handleEditProperty(property.id)}
+                    onDelete={() => handleDeleteProperty(property.id)}
+                    onViewOverview={() => handleViewPropertyDetails('overview', property.id)}
+                    onViewCashflow={() => handleViewPropertyDetails('cashflow', property.id)}
+                    onViewYearTable={() => handleViewPropertyDetails('yeartable', property.id)}
+                  />
                 ))}
               </SimpleGrid>
             )}
@@ -155,27 +156,23 @@ export default function HomePage() {
   };
 
   return (
-    <Box>
-      {/* Header-Bereich */}
-      <Box 
-        sx={{
-          padding: theme.spacing.md,
-          backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[7] : theme.white,
-          borderBottom: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
-          height: 70,
-          display: 'flex',
-          alignItems: 'center',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 200,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* Header */}
+      <header style={{ 
+        height: '70px', 
+        backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[7] : theme.white,
+        borderBottom: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 16px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
           <Burger
-            opened={opened}
-            onClick={() => setOpened((o) => !o)}
+            opened={mobileNavOpen}
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
             size="sm"
             color={theme.colors.gray[6]}
             mr="xl"
@@ -185,86 +182,102 @@ export default function HomePage() {
               },
             }}
           />
-
           <Text weight={700} size="xl">Immobilien-Steuerrechner Deutschland</Text>
-        </Box>
-      </Box>
+        </div>
+      </header>
 
-      <Box sx={{ display: 'flex', marginTop: 70 }}>
-        {/* Sidebar-Navigation */}
-        <Box 
-          sx={{ 
-            width: 250,
-            padding: theme.spacing.md,
-            backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[6] : theme.white,
-            borderRight: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
-            height: 'calc(100vh - 70px)',
-            position: 'fixed',
-            left: 0,
-            top: 70,
-            zIndex: 100,
-            display: opened ? 'block' : 'none',
-            '@media (min-width: 768px)': {
-              display: 'block',
-            },
-            overflowY: 'auto',
-          }}
-        >
+      <div style={{ display: 'flex', flex: 1 }}>
+        {/* Sidebar */}
+        <aside style={{
+          width: '250px',
+          backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[6] : theme.white,
+          borderRight: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
+          padding: '16px',
+          position: 'fixed',
+          top: '70px',
+          bottom: 0,
+          left: 0,
+          zIndex: 99,
+          overflowY: 'auto',
+          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s ease',
+          '@media (min-width: 768px)': {
+            transform: 'translateX(0)',
+          } as any,
+        }}>
           <Text weight={700} size="xl" mb="md">Immobilien-Steuerrechner</Text>
           
           <Button 
             fullWidth 
             variant={activeTab === 'portfolio' ? 'filled' : 'subtle'}
-            onClick={() => setActiveTab('portfolio')}
+            onClick={() => handleTabChange('portfolio')}
+            mb="xs"
           >
             Immobilien-Portfolio
           </Button>
           <Button 
             fullWidth 
             variant={activeTab === 'total-cashflow' ? 'filled' : 'subtle'} 
-            mt="xs"
-            onClick={() => setActiveTab('total-cashflow')}
+            onClick={() => handleTabChange('total-cashflow')}
+            mb="xs"
           >
             Gesamtcashflow
           </Button>
           <Button 
             fullWidth 
             variant={activeTab === 'total-yeartable' ? 'filled' : 'subtle'} 
-            mt="xs"
-            onClick={() => setActiveTab('total-yeartable')}
+            onClick={() => handleTabChange('total-yeartable')}
+            mb="xs"
           >
             Gesamtjahrestabelle
           </Button>
           <Button 
             fullWidth 
             variant={activeTab === 'tax' ? 'filled' : 'subtle'} 
-            mt="xs"
-            onClick={() => setActiveTab('tax')}
+            onClick={() => handleTabChange('tax')}
+            mb="xs"
           >
             Steuerinformationen
           </Button>
           
-          <Group position="center" mt="xl">
-            <Button variant="default" fullWidth>Berechnungen aktualisieren</Button>
-          </Group>
-        </Box>
+          <Button variant="default" fullWidth mt="xl">
+            Berechnungen aktualisieren
+          </Button>
+        </aside>
+
+        {/* Mobile Sidebar Overlay */}
+        {mobileNavOpen && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: '70px',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 98,
+            }}
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
 
         {/* Hauptinhalt */}
-        <Box 
-          sx={{ 
-            flexGrow: 1, 
-            marginLeft: { base: 0, md: 250 },
-            padding: theme.spacing.md,
-            backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[0],
-            minHeight: 'calc(100vh - 70px)',
-            width: { base: '100%', md: 'calc(100% - 250px)' },
-          }}
-        >
+        <main style={{
+          flex: 1,
+          padding: '16px',
+          backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[0],
+          marginLeft: 0,
+          width: '100%',
+          transition: 'margin-left 0.3s ease',
+          '@media (min-width: 768px)': {
+            marginLeft: '250px',
+          } as any,
+        }}>
           <Container size="xl">
             {renderContent()}
           </Container>
-        </Box>
-      </Box>
+        </main>
+      </div>
       
       <PropertyFormModal
         opened={modalOpened}
@@ -272,6 +285,6 @@ export default function HomePage() {
         property={selectedProperty}
         onSave={handleSaveProperty}
       />
-    </Box>
+    </div>
   );
 }

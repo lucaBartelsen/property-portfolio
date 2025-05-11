@@ -48,3 +48,56 @@ body {
     max-width: 100%;
   }
 }
+
+@media (min-width: 768px) {
+  aside {
+    display: block !important;
+  }
+  
+  main {
+    margin-left: 250px;
+  }
+}
+
+@media (max-width: 767px) {
+  main {
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  main {
+    margin-left: 250px !important;
+  }
+  
+  aside {
+    transform: translateX(0) !important;
+  }
+}
+
+/* Touch-Optimierungen für Mobile */
+@media (max-width: 767px) {
+  .mantine-Burger-root {
+    display: block;
+  }
+  
+  aside {
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  }
+}
+
+/* Allgemeine App-Styles */
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+.property-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.property-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
