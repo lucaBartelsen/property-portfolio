@@ -27,8 +27,8 @@ model Customer {
   notes      String?
   user       User       @relation(fields: [userId], references: [id])
   userId     String
-  portfolios Portfolio[]
-  taxInfo    TaxInfo?   // One customer has one tax info record
+  portfolios Portfolio[] // No onDelete here
+  taxInfo    TaxInfo?   // No onDelete here
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -36,9 +36,9 @@ model Customer {
 model Portfolio {
   id         String     @id @default(uuid())
   name       String
-  customer   Customer   @relation(fields: [customerId], references: [id])
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId String
-  properties Property[]
+  properties Property[] // No onDelete here
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
@@ -46,7 +46,7 @@ model Portfolio {
 model Property {
   id          String    @id @default(uuid())
   name        String
-  portfolio   Portfolio @relation(fields: [portfolioId], references: [id])
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   portfolioId String
   
   // Store your property configuration as JSON
@@ -67,11 +67,11 @@ enum TaxStatus {
 
 model TaxInfo {
   id          String    @id @default(uuid())
-  customer    Customer  @relation(fields: [customerId], references: [id])
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId  String    @unique
   
   annualIncome Float
-  taxStatus    TaxStatus  // Now using the enum
+  taxStatus    TaxStatus
   hasChurchTax Boolean   @default(false)
   churchTaxRate Float    @default(9)
   taxRate      Float

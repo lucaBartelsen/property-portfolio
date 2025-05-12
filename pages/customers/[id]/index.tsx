@@ -12,9 +12,21 @@ import {
   Grid,
   Card,
   Stack,
-  Loader
+  Loader,
+  Modal,
+  ActionIcon,
+  Menu,
+  TextInput,
+  Textarea,
+  NumberInput,
+  Radio,
+  Select,
+  Switch,
+  Divider
 } from '@mantine/core';
+import { useForm } from 'react-hook-form';
 import { formatCurrency } from '../../../lib/utils/formatters';
+import { calculateTaxInfo } from '../../../lib/calculators/taxCalculator';
 
 interface Customer {
   id: string;
@@ -60,11 +72,53 @@ export default function CustomerDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  // Modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form setup
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      notes: '',
+      // Tax info
+      annualIncome: 70000,
+      taxStatus: 'single',
+      hasChurchTax: false,
+      churchTaxRate: 9,
+      taxRate: 0
+    }
+  });
+  
+  // Watch for form values
+  const hasChurchTax = watch('hasChurchTax');
+  
   useEffect(() => {
     if (status === 'authenticated' && id) {
       fetchCustomerData();
     }
   }, [status, id]);
+  
+  // Populate form with customer data when opening edit modal
+  useEffect(() => {
+    if (customer && editModalOpen) {
+      setValue('name', customer.name);
+      setValue('email', customer.email || '');
+      setValue('phone', customer.phone || '');
+      setValue('notes', customer.notes || '');
+      
+      if (customer.taxInfo) {
+        setValue('annualIncome', customer.taxInfo.annualIncome);
+        setValue('taxStatus', customer.taxInfo.taxStatus);
+        setValue('hasChurchTax', customer.taxInfo.hasChurchTax);
+        setValue('churchTaxRate', customer.taxInfo.churchTaxRate);
+        setValue('taxRate', customer.taxInfo.taxRate);
+      }
+    }
+  }, [customer, editModalOpen, setValue]);
   
   const fetchCustomerData = async () => {
     setLoading(true);
@@ -112,6 +166,96 @@ export default function CustomerDetail() {
     router.push(`/properties/${propertyId}`);
   };
   
+  const handleDeleteCustomer = async () => {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/customers/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete customer');
+      }
+      
+      // Redirect to dashboard after successful deletion
+      router.push('/dashboard');
+    } catch (error: any) {
+      setError(error.message || 'An error occurred while deleting the customer');
+    } finally {
+      setIsSubmitting(false);
+      setDeleteModalOpen(false);
+    }
+  };
+  
+  const handleUpdateCustomer = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      // Calculate tax info
+      const taxInfoData = calculateTaxInfo({
+        annualIncome: data.annualIncome,
+        taxStatus: data.taxStatus as 'single' | 'married',
+        hasChurchTax: data.hasChurchTax,
+        churchTaxRate: data.churchTaxRate,
+        taxRate: data.taxRate
+      });
+      
+      // First update the customer
+      const customerResponse = await fetch(`/api/customers/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          notes: data.notes
+        }),
+      });
+      
+      if (!customerResponse.ok) {
+        throw new Error('Failed to update customer');
+      }
+      
+      // Then update tax info
+      if (customer?.taxInfo?.id) {
+        // Update existing tax info
+        const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taxInfoData),
+        });
+        
+        if (!taxResponse.ok) {
+          throw new Error('Failed to update tax information');
+        }
+      } else {
+        // Create new tax info
+        const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taxInfoData),
+        });
+        
+        if (!taxResponse.ok) {
+          throw new Error('Failed to create tax information');
+        }
+      }
+      
+      // Refresh the data
+      await fetchCustomerData();
+      setEditModalOpen(false);
+    } catch (error: any) {
+      setError(error.message || 'An error occurred while updating the customer');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   if (status === 'loading' || loading) {
     return (
       <Container size="lg" py="xl" style={{ textAlign: 'center' }}>
@@ -138,9 +282,17 @@ export default function CustomerDetail() {
       <Paper p="xl" withBorder mb="xl">
         <Group position="apart" mb="md">
           <Title order={2}>{customer.name}</Title>
-          <Button variant="outline" onClick={() => router.push('/dashboard')}>
-            Zurück zum Dashboard
-          </Button>
+          <Group>
+            <Button variant="outline" color="blue" onClick={() => setEditModalOpen(true)}>
+              Bearbeiten
+            </Button>
+            <Button variant="outline" color="red" onClick={() => setDeleteModalOpen(true)}>
+              Löschen
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/dashboard')}>
+              Zurück zum Dashboard
+            </Button>
+          </Group>
         </Group>
         
         <Grid>
@@ -230,6 +382,161 @@ export default function CustomerDetail() {
           </Text>
         )}
       </Paper>
+      
+      {/* Edit Customer Modal */}
+      <Modal
+        opened={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Kundendaten bearbeiten"
+        size="lg"
+      >
+        <form onSubmit={handleSubmit(handleUpdateCustomer)}>
+          <Grid>
+            {/* Customer Details Section */}
+            <Grid.Col span={12}>
+              <Title order={3} mb="md">Kundendaten</Title>
+            </Grid.Col>
+            
+            <Grid.Col span={12} md={6}>
+              <TextInput
+                label="Name"
+                placeholder="Vollständiger Name"
+                required
+                {...register('name', { required: 'Name ist erforderlich' })}
+                error={errors.name?.message}
+              />
+            </Grid.Col>
+            
+            <Grid.Col span={12} md={6}>
+              <TextInput
+                label="E-Mail"
+                placeholder="email@beispiel.de"
+                {...register('email')}
+                error={errors.email?.message}
+              />
+            </Grid.Col>
+            
+            <Grid.Col span={12} md={6}>
+              <TextInput
+                label="Telefon"
+                placeholder="+49 123 4567890"
+                {...register('phone')}
+                error={errors.phone?.message}
+              />
+            </Grid.Col>
+            
+            <Grid.Col span={12}>
+              <Textarea
+                label="Notizen"
+                placeholder="Zusätzliche Informationen zum Kunden"
+                {...register('notes')}
+                error={errors.notes?.message}
+                minRows={3}
+              />
+            </Grid.Col>
+            
+            <Grid.Col span={12}>
+              <Divider my="md" label="Steuerinformationen" labelPosition="center" />
+            </Grid.Col>
+            
+            {/* Tax Information Section */}
+            <Grid.Col span={12} md={6}>
+              <NumberInput
+                label="Zu versteuerndes Jahreseinkommen (€)"
+                description="Brutto-Jahreseinkommen ohne Immobilieneinkünfte"
+                required
+                min={0}
+                value={watch('annualIncome')}
+                onChange={(val) => setValue('annualIncome', val || 0)}
+                error={errors.annualIncome?.message}
+              />
+            </Grid.Col>
+            
+            <Grid.Col span={12} md={6}>
+              <Radio.Group
+                label="Steuerlicher Status"
+                required
+                value={watch('taxStatus')}
+                onChange={(val) => setValue('taxStatus', val)}
+                error={errors.taxStatus?.message}
+              >
+                <Radio value="single" label="Alleinstehend" />
+                <Radio value="married" label="Verheiratet (Splitting-Verfahren)" />
+              </Radio.Group>
+            </Grid.Col>
+            
+            <Grid.Col span={12} md={6}>
+              <Switch
+                label="Kirchensteuer"
+                checked={watch('hasChurchTax')}
+                onChange={(event) => setValue('hasChurchTax', event.currentTarget.checked)}
+              />
+            </Grid.Col>
+            
+            {hasChurchTax && (
+              <Grid.Col span={12} md={6}>
+                <Select
+                  label="Kirchensteuersatz (%)"
+                  description="8% in Bayern und Baden-Württemberg, 9% in anderen Bundesländern"
+                  data={[
+                    { value: '8', label: '8%' },
+                    { value: '9', label: '9%' },
+                  ]}
+                  value={watch('churchTaxRate').toString()}
+                  onChange={(val) => setValue('churchTaxRate', parseInt(val || '9'))}
+                  error={errors.churchTaxRate?.message}
+                />
+              </Grid.Col>
+            )}
+            
+            <Grid.Col span={12} md={6}>
+              <NumberInput
+                label="Errechneter Steuersatz (%)"
+                disabled
+                value={watch('taxRate')}
+                precision={1}
+              />
+            </Grid.Col>
+            
+            {error && (
+              <Grid.Col span={12}>
+                <Text color="red">{error}</Text>
+              </Grid.Col>
+            )}
+            
+            <Grid.Col span={12}>
+              <Group position="right" mt="xl">
+                <Button type="button" variant="outline" onClick={() => setEditModalOpen(false)}>
+                  Abbrechen
+                </Button>
+                <Button type="submit" loading={isSubmitting}>
+                  Speichern
+                </Button>
+              </Group>
+            </Grid.Col>
+          </Grid>
+        </form>
+      </Modal>
+      
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Kunde löschen"
+        size="sm"
+      >
+        <Text mb="xl">
+          Sind Sie sicher, dass Sie den Kunden "{customer.name}" und alle damit verbundenen Daten löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+        </Text>
+        <Group position="right">
+          <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
+            Abbrechen
+          </Button>
+          <Button color="red" onClick={handleDeleteCustomer} loading={isSubmitting}>
+            Löschen
+          </Button>
+        </Group>
+      </Modal>
     </Container>
   );
 }
