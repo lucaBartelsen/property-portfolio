@@ -4,6 +4,7 @@ import { Card, Title, Button, Group, Text, Grid, Divider } from '@mantine/core';
 import { Property } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
 import { usePropertyStore } from '../store/PropertyContext';
+import { useRouter } from 'next/router';
 
 interface PropertyDetailsProps {
   property: Property;
@@ -12,6 +13,7 @@ interface PropertyDetailsProps {
 
 export default function PropertyDetails({ property, onBack }: PropertyDetailsProps) {
   const { dispatch } = usePropertyStore();
+  const router = useRouter();
   
   // Calculate data if it doesn't exist yet
   useEffect(() => {
@@ -25,14 +27,24 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
   const ongoingData = property.ongoingData;
   const results = property.calculationResults;
   
+  const handleEditProperty = () => {
+    // Navigate to the edit page
+    router.push(`/properties/${property.id}/edit`);
+  };
+  
   if (!purchaseData || !ongoingData || !results) {
     return (
       <Card p="md" withBorder>
         <Group position="apart" mb="md">
           <Title order={2}>Übersicht: {property.name}</Title>
-          <Button variant="outline" onClick={onBack}>
-            Zurück
-          </Button>
+          <Group>
+            <Button variant="outline" color="blue" onClick={handleEditProperty}>
+              Bearbeiten
+            </Button>
+            <Button variant="outline" onClick={onBack}>
+              Zurück
+            </Button>
+          </Group>
         </Group>
         <Text align="center" py="xl">Daten werden berechnet...</Text>
         <Button fullWidth onClick={() => dispatch({ type: 'UPDATE_PROPERTY', property })}>
@@ -46,9 +58,14 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
         <Title order={2}>Übersicht: {property.name}</Title>
-        <Button variant="outline" onClick={onBack}>
-          Zurück
-        </Button>
+        <Group>
+          <Button variant="outline" color="blue" onClick={handleEditProperty}>
+            Bearbeiten
+          </Button>
+          <Button variant="outline" onClick={onBack}>
+            Zurück
+          </Button>
+        </Group>
       </Group>
       
       <Grid gutter="xl">
@@ -72,6 +89,12 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
                 <Text size="sm" color="dimmed">Maklerprovision:</Text>
                 <Text>{formatCurrency(purchaseData.brokerFee)}</Text>
               </Grid.Col>
+              {purchaseData.brokerAsConsulting && purchaseData.firstYearDeductibleCosts > 0 && (
+                <Grid.Col span={6}>
+                  <Text size="sm" color="dimmed">Maklerprovision als Beratungsleistung (absetzbar):</Text>
+                  <Text>{formatCurrency(purchaseData.firstYearDeductibleCosts)}</Text>
+                </Grid.Col>
+              )}
               <Grid.Col span={6}>
                 <Text size="sm" color="dimmed">Gesamte Kaufnebenkosten:</Text>
                 <Text>{formatCurrency(purchaseData.totalExtra)}</Text>

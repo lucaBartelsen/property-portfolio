@@ -84,6 +84,11 @@ export default function PropertyDetailPage() {
     }
   };
   
+  const handleEditProperty = () => {
+    // Navigate to edit page
+    router.push(`/properties/${id}/edit`);
+  };
+  
   const navigateBack = () => {
     // Navigate back to the customer page if possible
     if (property?.portfolio?.customer?.id) {
@@ -121,6 +126,9 @@ export default function PropertyDetailPage() {
         <Group position="apart">
           <Title order={2}>{property?.name}</Title>
           <Group>
+            <Button variant="outline" color="blue" onClick={handleEditProperty}>
+              Bearbeiten
+            </Button>
             <Button variant="outline" color="red" onClick={handleDeleteProperty}>
               Löschen
             </Button>

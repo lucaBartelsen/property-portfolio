@@ -198,6 +198,9 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     document.body.removeChild(link);
   };
   
+  // Check if broker consulting costs exist in any of the yearly data
+  const hasAnyBrokerConsultingCosts = yearlyData.some(data => data.firstYearDeductibleCosts > 0);
+  
   return (
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
@@ -461,18 +464,21 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                     </td>
                   ))}
                 </tr>
+                
+                {/* Display Maklerkosten als Beratungsleistung row if applicable */}
+                {hasAnyBrokerConsultingCosts && (
+                  <tr>
+                    <td style={{ paddingLeft: 30 }}>Maklerkosten als Beratungsleistung</td>
+                    {pageData.map((data, index) => (
+                      <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                        {formatCurrency(data.firstYearDeductibleCosts)}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+                
                 {showAllColumns && (
                   <>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>
-                        {pageData[0].firstYearDeductibleCosts > 0 ? 'Maklerkosten als Beratungsleistung' : ''}
-                      </td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                          {data.firstYearDeductibleCosts > 0 ? formatCurrency(data.firstYearDeductibleCosts) : '-'}
-                        </td>
-                      ))}
-                    </tr>
                     <tr>
                       <td style={{ paddingLeft: 30 }}>Ergebnis vor Steuern</td>
                       {pageData.map((data, index) => (
