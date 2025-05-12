@@ -162,6 +162,14 @@ export default function CustomerDetail() {
     }
   };
   
+  const handleViewPortfolio = () => {
+    if (portfolio) {
+      router.push('/portfolio-overview');
+    } else {
+      setError('Kein Portfolio gefunden. Bitte erstellen Sie zuerst ein Portfolio.');
+    }
+  };
+  
   const viewPropertyDetails = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
   };
@@ -332,9 +340,19 @@ export default function CustomerDetail() {
       <Paper p="xl" withBorder>
         <Group position="apart" mb="xl">
           <Title order={3}>Immobilien</Title>
-          <Button onClick={handleAddProperty} disabled={!portfolio}>
-            Neue Immobilie hinzufügen
-          </Button>
+          <Group>
+            <Button onClick={handleAddProperty} disabled={!portfolio}>
+              Neue Immobilie hinzufügen
+            </Button>
+            <Button 
+              variant="outline" 
+              color="blue" 
+              onClick={handleViewPortfolio}
+              disabled={!portfolio || properties.length === 0}
+            >
+              Portfolio-Übersicht
+            </Button>
+          </Group>
         </Group>
         
         {error && (

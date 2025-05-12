@@ -22,6 +22,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis
 import CashflowChart from '../components/CashflowChart';
 import YearTable from '../components/YearTable';
 import { formatCurrency } from '../lib/utils/formatters';
+import { usePropertyStore } from '../store/PropertyContext';
+import { Property } from '../lib/types';
 
 // Define color palette for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -35,9 +37,11 @@ export default function PortfolioOverview() {
     },
   });
   
+  const { state, dispatch } = usePropertyStore();
+  
   const [loading, setLoading] = useState(true);
   const [portfolios, setPortfolios] = useState([]);
-  const [properties, setProperties] = useState([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState('');
@@ -65,6 +69,22 @@ export default function PortfolioOverview() {
       fetchProperties(selectedPortfolio);
     }
   }, [selectedPortfolio]);
+  
+  // Update property store and trigger calculations when properties change
+  useEffect(() => {
+    if (properties.length > 0) {
+      // Clear current properties in store
+      dispatch({ type: 'RESET_COMBINED_RESULTS' });
+      
+      // Add all properties to the store
+      properties.forEach(property => {
+        dispatch({ type: 'ADD_PROPERTY', property });
+      });
+      
+      // Calculate combined results
+      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+    }
+  }, [properties, dispatch]);
   
   const fetchPortfolios = async () => {
     setLoading(true);

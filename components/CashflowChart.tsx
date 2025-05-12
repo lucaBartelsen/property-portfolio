@@ -1,10 +1,10 @@
 // src/components/CashflowChart.tsx
+import { useEffect } from 'react';
 import { Card, Title, Button, Group, Text, Paper } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Property } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
-import { useEffect } from 'react';
 
 interface CashflowChartProps {
   property?: Property;
@@ -15,9 +15,9 @@ interface CashflowChartProps {
 export default function CashflowChart({ property, combined, onBack }: CashflowChartProps) {
   const { state, dispatch } = usePropertyStore();
   
-  // Calculate cashflow data if not already calculated
+  // Auto-calculate when component mounts
   useEffect(() => {
-    // If combined mode is active, calculate combined results if they don't exist
+    // If combined mode is active, calculate combined results
     if (combined && !state.combinedResults) {
       dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
     }
@@ -25,7 +25,6 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
     // If looking at a specific property and it doesn't have results yet, trigger calculation
     if (property && (!property.calculationResults || !property.yearlyData)) {
       // We need to dispatch a calculation for this specific property
-      // The simplest way is to update the property which will trigger recalculation
       dispatch({ type: 'UPDATE_PROPERTY', property });
     }
   }, [combined, property, state.combinedResults, dispatch]);
@@ -35,8 +34,16 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
     ? state.combinedResults?.yearlyData 
     : property?.yearlyData;
   
-  // If no data is available, show a message
+  // If no data is available, retry calculations
   if (!yearlyData || yearlyData.length === 0) {
+    // Try to calculate data again if missing
+    if (combined) {
+      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+    } else if (property) {
+      dispatch({ type: 'UPDATE_PROPERTY', property });
+    }
+    
+    // Show loading message
     return (
       <Paper p="xl" withBorder>
         <Group position="apart" mb="md">
@@ -47,10 +54,7 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
             </Button>
           )}
         </Group>
-        <Text align="center">Keine Daten vorhanden. Bitte führen Sie zuerst die Berechnungen durch.</Text>
-        <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
-          Berechnungen durchführen
-        </Button>
+        <Text align="center">Daten werden berechnet...</Text>
       </Paper>
     );
   }
