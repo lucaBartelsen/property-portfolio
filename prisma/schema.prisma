@@ -1,0 +1,81 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  name      String
+  password  String
+  customers Customer[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Customer {
+  id         String     @id @default(uuid())
+  name       String
+  email      String?
+  phone      String?
+  notes      String?
+  user       User       @relation(fields: [userId], references: [id])
+  userId     String
+  portfolios Portfolio[]
+  taxInfo    TaxInfo?   // One customer has one tax info record
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Portfolio {
+  id         String     @id @default(uuid())
+  name       String
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  customerId String
+  properties Property[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Property {
+  id          String    @id @default(uuid())
+  name        String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id])
+  portfolioId String
+  
+  // Store your property configuration as JSON
+  defaults    Json
+  purchaseData Json?
+  ongoingData Json?
+  calculationResults Json?
+  yearlyData  Json?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum TaxStatus {
+  single
+  married
+}
+
+model TaxInfo {
+  id          String    @id @default(uuid())
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  customerId  String    @unique
+  
+  annualIncome Float
+  taxStatus    TaxStatus  // Now using the enum
+  hasChurchTax Boolean   @default(false)
+  churchTaxRate Float    @default(9)
+  taxRate      Float
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

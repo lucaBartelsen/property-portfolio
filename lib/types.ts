@@ -1,5 +1,6 @@
 // src/lib/types.ts
 
+
 // Property-Typ
 export interface Property {
   id: string;
@@ -125,9 +126,12 @@ export interface YearlyData {
 }
 
 // Steuerdaten
+
 export interface TaxInfo {
+  id?: string;
+  customerId?: string;
   annualIncome: number;
-  taxStatus: 'single' | 'married';
+  taxStatus: 'single' | 'married';  // Using string literal type
   hasChurchTax: boolean;
   churchTaxRate: number;
   taxRate: number;

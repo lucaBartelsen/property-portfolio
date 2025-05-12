@@ -1,5 +1,5 @@
 // src/components/PropertyForm.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   TextInput,
@@ -38,34 +38,74 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   );
 
   // Initialize form with property data or defaults
-  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<PropertyDefaults & { name: string }>({
-    defaultValues: {
-      name: property?.name || 'Neue Immobilie',
-      purchasePrice: property?.defaults.purchasePrice || 316500,
-      bundesland: property?.defaults.bundesland || "3.5",
-      notaryRate: property?.defaults.notaryRate || 1.5,
-      brokerRate: property?.defaults.brokerRate || 3.0,
-      brokerAsConsulting: property?.defaults.brokerAsConsulting || true,
-      depreciationRate: property?.defaults.depreciationRate || 2.0,
-      landValue: property?.defaults.landValue || 45000,
-      buildingValue: property?.defaults.buildingValue || 255000,
-      maintenanceCost: property?.defaults.maintenanceCost || 35000,
-      furnitureValue: property?.defaults.furnitureValue || 16500,
-      maintenanceDistribution: property?.defaults.maintenanceDistribution || 1,
-      financingType: property?.defaults.financingType || 'loan',
-      downPayment: property?.defaults.downPayment || 25000,
-      interestRate: property?.defaults.interestRate || 4.0,
-      repaymentRate: property?.defaults.repaymentRate || 1.5,
-      monthlyRent: property?.defaults.monthlyRent || 1200,
-      vacancyRate: property?.defaults.vacancyRate || 3.0,
-      propertyTax: property?.defaults.propertyTax || 500,
-      managementFee: property?.defaults.managementFee || 600,
-      maintenanceReserve: property?.defaults.maintenanceReserve || 600,
-      insurance: property?.defaults.insurance || 300,
-      appreciationRate: property?.defaults.appreciationRate || 2.0,
-      rentIncreaseRate: property?.defaults.rentIncreaseRate || 1.5,
+  const { register, handleSubmit, watch, setValue, control, formState: { errors }, reset } = useForm<PropertyDefaults & { name: string }>();
+  
+  // Effect to set form values when property changes or on component mount
+  useEffect(() => {
+    if (property) {
+      // Reset form with property values when editing existing property
+      reset({
+        name: property.name,
+        purchasePrice: property.defaults.purchasePrice,
+        bundesland: property.defaults.bundesland,
+        notaryRate: property.defaults.notaryRate,
+        brokerRate: property.defaults.brokerRate,
+        brokerAsConsulting: property.defaults.brokerAsConsulting,
+        depreciationRate: property.defaults.depreciationRate,
+        landValue: property.defaults.landValue,
+        buildingValue: property.defaults.buildingValue,
+        maintenanceCost: property.defaults.maintenanceCost,
+        furnitureValue: property.defaults.furnitureValue,
+        maintenanceDistribution: property.defaults.maintenanceDistribution,
+        financingType: property.defaults.financingType,
+        downPayment: property.defaults.downPayment,
+        interestRate: property.defaults.interestRate,
+        repaymentRate: property.defaults.repaymentRate,
+        monthlyRent: property.defaults.monthlyRent,
+        vacancyRate: property.defaults.vacancyRate,
+        propertyTax: property.defaults.propertyTax,
+        managementFee: property.defaults.managementFee,
+        maintenanceReserve: property.defaults.maintenanceReserve,
+        insurance: property.defaults.insurance,
+        appreciationRate: property.defaults.appreciationRate,
+        rentIncreaseRate: property.defaults.rentIncreaseRate,
+      });
+      
+      // Also set the financing type state
+      setFinancingType(property.defaults.financingType);
+    } else {
+      // Use default values for new property
+      reset({
+        name: 'Neue Immobilie',
+        purchasePrice: DEFAULT_PROPERTY_VALUES.purchasePrice,
+        bundesland: DEFAULT_PROPERTY_VALUES.bundesland,
+        notaryRate: DEFAULT_PROPERTY_VALUES.notaryRate,
+        brokerRate: DEFAULT_PROPERTY_VALUES.brokerRate,
+        brokerAsConsulting: DEFAULT_PROPERTY_VALUES.brokerAsConsulting,
+        depreciationRate: DEFAULT_PROPERTY_VALUES.depreciationRate,
+        landValue: DEFAULT_PROPERTY_VALUES.landValue,
+        buildingValue: DEFAULT_PROPERTY_VALUES.buildingValue,
+        maintenanceCost: DEFAULT_PROPERTY_VALUES.maintenanceCost,
+        furnitureValue: DEFAULT_PROPERTY_VALUES.furnitureValue,
+        maintenanceDistribution: DEFAULT_PROPERTY_VALUES.maintenanceDistribution,
+        financingType: DEFAULT_PROPERTY_VALUES.financingType,
+        downPayment: DEFAULT_PROPERTY_VALUES.downPayment,
+        interestRate: DEFAULT_PROPERTY_VALUES.interestRate,
+        repaymentRate: DEFAULT_PROPERTY_VALUES.repaymentRate,
+        monthlyRent: DEFAULT_PROPERTY_VALUES.monthlyRent,
+        vacancyRate: DEFAULT_PROPERTY_VALUES.vacancyRate,
+        propertyTax: DEFAULT_PROPERTY_VALUES.propertyTax,
+        managementFee: DEFAULT_PROPERTY_VALUES.managementFee,
+        maintenanceReserve: DEFAULT_PROPERTY_VALUES.maintenanceReserve,
+        insurance: DEFAULT_PROPERTY_VALUES.insurance,
+        appreciationRate: DEFAULT_PROPERTY_VALUES.appreciationRate,
+        rentIncreaseRate: DEFAULT_PROPERTY_VALUES.rentIncreaseRate,
+      });
+      
+      // Set default financing type
+      setFinancingType(DEFAULT_PROPERTY_VALUES.financingType);
     }
-  });
+  }, [property, reset]);
 
  // Watch values for validation
   const watchPurchasePrice = watch('purchasePrice');
@@ -156,7 +196,6 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                 <Controller
                   name="bundesland"
                   control={control}
-                  defaultValue={property?.defaults.bundesland || DEFAULT_PROPERTY_VALUES.bundesland}
                   render={({ field }) => (
                     <Select
                       label="Bundesland"
@@ -268,7 +307,6 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                 <Controller
                   name="maintenanceDistribution"
                   control={control}
-                  defaultValue={property?.defaults.maintenanceDistribution || DEFAULT_PROPERTY_VALUES.maintenanceDistribution}
                   render={({ field }) => (
                     <Select
                       label="Verteilung Erhaltungsaufwand"
