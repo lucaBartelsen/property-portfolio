@@ -1,6 +1,6 @@
 // src/components/YearTable.tsx
 import { useState, useEffect } from 'react';
-import { Card, Title, Button, Group, Text, Paper, Table, Switch, Pagination, Checkbox } from '@mantine/core';
+import { Card, Title, Button, Group, Text, Paper, Table, Pagination } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
 import { Property, YearlyData } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
@@ -13,7 +13,6 @@ interface YearTableProps {
 
 export default function YearTable({ property, combined, onBack }: YearTableProps) {
   const { state, dispatch } = usePropertyStore();
-  const [showAllColumns, setShowAllColumns] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const itemsPerPage = 5;
@@ -213,11 +212,6 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
       </Group>
       
       <Group position="apart" mb="sm">
-        <Switch
-          label="Alle Spalten anzeigen"
-          checked={showAllColumns}
-          onChange={(event) => setShowAllColumns(event.currentTarget.checked)}
-        />
         
         <Button.Group>
           <Button 
@@ -475,67 +469,6 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                       </td>
                     ))}
                   </tr>
-                )}
-                
-                {showAllColumns && (
-                  <>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Ergebnis vor Steuern</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: data.taxableIncome >= 0 ? 'green' : 'red' }}>
-                          {formatCurrency(data.taxableIncome)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Zu versteuerndes Einkommen (vorher)</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right' }}>
-                          {formatCurrency(data.previousIncome)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Neues zu versteuerndes Gesamteinkommen</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right' }}>
-                          {formatCurrency(data.newTotalIncome)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Einkommensteuer (vorher)</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                          {formatCurrency(data.previousTax)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Einkommensteuer (nachher)</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                          {formatCurrency(data.newTax)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Kirchensteuer (vorher)</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                          {formatCurrency(data.previousChurchTax)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ paddingLeft: 30 }}>Kirchensteuer (nachher)</td>
-                      {pageData.map((data, index) => (
-                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                          {formatCurrency(data.newChurchTax)}
-                        </td>
-                      ))}
-                    </tr>
-                  </>
                 )}
               </>
             )}

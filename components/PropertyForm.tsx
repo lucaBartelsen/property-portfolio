@@ -37,42 +37,49 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
     property?.defaults.financingType || 'loan'
   );
 
+  // Ensure numeric values are properly converted to numbers
+  const ensureNumber = (value: any): number => {
+    if (value === undefined || value === null) return 0;
+    const num = typeof value === 'string' ? parseFloat(value) : Number(value);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Initialize form with property data or defaults
   const { register, handleSubmit, watch, setValue, control, formState: { errors }, reset } = useForm<PropertyDefaults & { name: string }>();
   
   // Effect to set form values when property changes or on component mount
   useEffect(() => {
     if (property) {
-      // Reset form with property values when editing existing property
+      // Reset form with property values when editing existing property, ensuring all values are properly typed
       reset({
         name: property.name,
-        purchasePrice: property.defaults.purchasePrice,
-        bundesland: property.defaults.bundesland,
-        notaryRate: property.defaults.notaryRate,
-        brokerRate: property.defaults.brokerRate,
-        brokerAsConsulting: property.defaults.brokerAsConsulting,
-        depreciationRate: property.defaults.depreciationRate,
-        landValue: property.defaults.landValue,
-        buildingValue: property.defaults.buildingValue,
-        maintenanceCost: property.defaults.maintenanceCost,
-        furnitureValue: property.defaults.furnitureValue,
-        maintenanceDistribution: property.defaults.maintenanceDistribution,
-        financingType: property.defaults.financingType,
-        downPayment: property.defaults.downPayment,
-        interestRate: property.defaults.interestRate,
-        repaymentRate: property.defaults.repaymentRate,
-        monthlyRent: property.defaults.monthlyRent,
-        vacancyRate: property.defaults.vacancyRate,
-        propertyTax: property.defaults.propertyTax,
-        managementFee: property.defaults.managementFee,
-        maintenanceReserve: property.defaults.maintenanceReserve,
-        insurance: property.defaults.insurance,
-        appreciationRate: property.defaults.appreciationRate,
-        rentIncreaseRate: property.defaults.rentIncreaseRate,
+        purchasePrice: ensureNumber(property.defaults.purchasePrice),
+        bundesland: property.defaults.bundesland || DEFAULT_PROPERTY_VALUES.bundesland,
+        notaryRate: ensureNumber(property.defaults.notaryRate),
+        brokerRate: ensureNumber(property.defaults.brokerRate),
+        brokerAsConsulting: !!property.defaults.brokerAsConsulting,
+        depreciationRate: ensureNumber(property.defaults.depreciationRate),
+        landValue: ensureNumber(property.defaults.landValue),
+        buildingValue: ensureNumber(property.defaults.buildingValue),
+        maintenanceCost: ensureNumber(property.defaults.maintenanceCost),
+        furnitureValue: ensureNumber(property.defaults.furnitureValue),
+        maintenanceDistribution: ensureNumber(property.defaults.maintenanceDistribution),
+        financingType: property.defaults.financingType || 'loan',
+        downPayment: ensureNumber(property.defaults.downPayment),
+        interestRate: ensureNumber(property.defaults.interestRate),
+        repaymentRate: ensureNumber(property.defaults.repaymentRate),
+        monthlyRent: ensureNumber(property.defaults.monthlyRent),
+        vacancyRate: ensureNumber(property.defaults.vacancyRate),
+        propertyTax: ensureNumber(property.defaults.propertyTax),
+        managementFee: ensureNumber(property.defaults.managementFee),
+        maintenanceReserve: ensureNumber(property.defaults.maintenanceReserve),
+        insurance: ensureNumber(property.defaults.insurance),
+        appreciationRate: ensureNumber(property.defaults.appreciationRate),
+        rentIncreaseRate: ensureNumber(property.defaults.rentIncreaseRate),
       });
       
       // Also set the financing type state
-      setFinancingType(property.defaults.financingType);
+      setFinancingType(property.defaults.financingType || 'loan');
     } else {
       // Use default values for new property
       reset({
@@ -115,28 +122,51 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   const watchFurnitureValue = watch('furnitureValue');
 
   // Convert to numbers with fallbacks
-  const purchasePrice = Number(watchPurchasePrice || 0);
-  const landValue = Number(watchLandValue || 0);
-  const buildingValue = Number(watchBuildingValue || 0);
-  const maintenanceCost = Number(watchMaintenanceCost || 0);
-  const furnitureValue = Number(watchFurnitureValue || 0);
+  const purchasePrice = ensureNumber(watchPurchasePrice);
+  const landValue = ensureNumber(watchLandValue);
+  const buildingValue = ensureNumber(watchBuildingValue);
+  const maintenanceCost = ensureNumber(watchMaintenanceCost);
+  const furnitureValue = ensureNumber(watchFurnitureValue);
 
   // Calculate total allocation with maintenance cost included
   const totalAllocation = landValue + buildingValue + maintenanceCost + furnitureValue;
   const allocationError = Math.abs(totalAllocation - purchasePrice) > 1;
 
   const onSubmit = (data: PropertyDefaults & { name: string }) => {
-    const { name, ...defaults } = data;
+    const { name, ...formDefaults } = data;
+    
+    // Convert all numeric values to ensure they are numbers
+    const defaults = {
+      ...formDefaults,
+      purchasePrice: ensureNumber(formDefaults.purchasePrice),
+      notaryRate: ensureNumber(formDefaults.notaryRate),
+      brokerRate: ensureNumber(formDefaults.brokerRate),
+      depreciationRate: ensureNumber(formDefaults.depreciationRate),
+      landValue: ensureNumber(formDefaults.landValue),
+      buildingValue: ensureNumber(formDefaults.buildingValue),
+      maintenanceCost: ensureNumber(formDefaults.maintenanceCost),
+      furnitureValue: ensureNumber(formDefaults.furnitureValue),
+      maintenanceDistribution: ensureNumber(formDefaults.maintenanceDistribution),
+      downPayment: ensureNumber(formDefaults.downPayment),
+      interestRate: ensureNumber(formDefaults.interestRate),
+      repaymentRate: ensureNumber(formDefaults.repaymentRate),
+      monthlyRent: ensureNumber(formDefaults.monthlyRent),
+      vacancyRate: ensureNumber(formDefaults.vacancyRate),
+      propertyTax: ensureNumber(formDefaults.propertyTax),
+      managementFee: ensureNumber(formDefaults.managementFee),
+      maintenanceReserve: ensureNumber(formDefaults.maintenanceReserve),
+      insurance: ensureNumber(formDefaults.insurance),
+      appreciationRate: ensureNumber(formDefaults.appreciationRate),
+      rentIncreaseRate: ensureNumber(formDefaults.rentIncreaseRate),
+      financingType,
+    };
     
     if (isEditing && property) {
       // Update existing property
       const updatedProperty: Property = {
         ...property,
         name,
-        defaults: {
-          ...defaults,
-          financingType,
-        },
+        defaults,
       };
       onSave(updatedProperty);
     } else {
@@ -148,10 +178,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
         ongoingData: null,
         calculationResults: null,
         yearlyData: null,
-        defaults: {
-          ...defaults,
-          financingType,
-        },
+        defaults,
       };
       onSave(newProperty);
     }
@@ -190,7 +217,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('purchasePrice')}
-                  onChange={(val) => setValue('purchasePrice', val || 0)}
+                  onChange={(val) => setValue('purchasePrice', ensureNumber(val))}
                   error={errors.purchasePrice?.message}
                 />
               </Grid.Col>
@@ -222,7 +249,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('notaryRate')}
-                  onChange={(val) => setValue('notaryRate', val || 0)}
+                  onChange={(val) => setValue('notaryRate', ensureNumber(val))}
                   error={errors.notaryRate?.message}
                 />
               </Grid.Col>
@@ -236,7 +263,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('brokerRate')}
-                  onChange={(val) => setValue('brokerRate', val || 0)}
+                  onChange={(val) => setValue('brokerRate', ensureNumber(val))}
                   error={errors.brokerRate?.message}
                 />
               </Grid.Col>
@@ -257,7 +284,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('depreciationRate')}
-                  onChange={(val) => setValue('depreciationRate', val || 0)}
+                  onChange={(val) => setValue('depreciationRate', ensureNumber(val))}
                   error={errors.depreciationRate?.message}
                 />
               </Grid.Col>
@@ -275,7 +302,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('landValue')}
-                  onChange={(val) => setValue('landValue', val || 0)}
+                  onChange={(val) => setValue('landValue', ensureNumber(val))}
                   error={errors.landValue?.message}
                 />
               </Grid.Col>
@@ -287,7 +314,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('buildingValue')}
-                  onChange={(val) => setValue('buildingValue', val || 0)}
+                  onChange={(val) => setValue('buildingValue', ensureNumber(val))}
                   error={errors.buildingValue?.message}
                 />
               </Grid.Col>
@@ -299,7 +326,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('maintenanceCost')}
-                  onChange={(val) => setValue('maintenanceCost', val || 0)}
+                  onChange={(val) => setValue('maintenanceCost', ensureNumber(val))}
                   error={errors.maintenanceCost?.message}
                 />
               </Grid.Col>
@@ -311,7 +338,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('furnitureValue')}
-                  onChange={(val) => setValue('furnitureValue', val || 0)}
+                  onChange={(val) => setValue('furnitureValue', ensureNumber(val))}
                   error={errors.furnitureValue?.message}
                 />
               </Grid.Col>
@@ -365,7 +392,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     min={0}
                     precision={0}
                     value={watch('downPayment')}
-                    onChange={(val) => setValue('downPayment', val || 0)}
+                    onChange={(val) => setValue('downPayment', ensureNumber(val))}
                     error={errors.downPayment?.message}
                   />
                 </Grid.Col>
@@ -379,7 +406,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     step={0.01}
                     precision={2}
                     value={watch('interestRate')}
-                    onChange={(val) => setValue('interestRate', val || 0)}
+                    onChange={(val) => setValue('interestRate', ensureNumber(val))}
                     error={errors.interestRate?.message}
                   />
                 </Grid.Col>
@@ -393,7 +420,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     step={0.1}
                     precision={1}
                     value={watch('repaymentRate')}
-                    onChange={(val) => setValue('repaymentRate', val || 0)}
+                    onChange={(val) => setValue('repaymentRate', ensureNumber(val))}
                     error={errors.repaymentRate?.message}
                   />
                 </Grid.Col>
@@ -412,7 +439,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('monthlyRent')}
-                  onChange={(val) => setValue('monthlyRent', val || 0)}
+                  onChange={(val) => setValue('monthlyRent', ensureNumber(val))}
                   error={errors.monthlyRent?.message}
                 />
               </Grid.Col>
@@ -426,7 +453,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('vacancyRate')}
-                  onChange={(val) => setValue('vacancyRate', val || 0)}
+                  onChange={(val) => setValue('vacancyRate', ensureNumber(val))}
                   error={errors.vacancyRate?.message}
                 />
               </Grid.Col>
@@ -438,7 +465,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('propertyTax')}
-                  onChange={(val) => setValue('propertyTax', val || 0)}
+                  onChange={(val) => setValue('propertyTax', ensureNumber(val))}
                   error={errors.propertyTax?.message}
                 />
               </Grid.Col>
@@ -450,7 +477,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('managementFee')}
-                  onChange={(val) => setValue('managementFee', val || 0)}
+                  onChange={(val) => setValue('managementFee', ensureNumber(val))}
                   error={errors.managementFee?.message}
                 />
               </Grid.Col>
@@ -462,7 +489,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('maintenanceReserve')}
-                  onChange={(val) => setValue('maintenanceReserve', val || 0)}
+                  onChange={(val) => setValue('maintenanceReserve', ensureNumber(val))}
                   error={errors.maintenanceReserve?.message}
                 />
               </Grid.Col>
@@ -474,7 +501,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   min={0}
                   precision={0}
                   value={watch('insurance')}
-                  onChange={(val) => setValue('insurance', val || 0)}
+                  onChange={(val) => setValue('insurance', ensureNumber(val))}
                   error={errors.insurance?.message}
                 />
               </Grid.Col>
@@ -494,7 +521,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('appreciationRate')}
-                  onChange={(val) => setValue('appreciationRate', val || 0)}
+                  onChange={(val) => setValue('appreciationRate', ensureNumber(val))}
                   error={errors.appreciationRate?.message}
                 />
               </Grid.Col>
@@ -508,7 +535,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   step={0.1}
                   precision={1}
                   value={watch('rentIncreaseRate')}
-                  onChange={(val) => setValue('rentIncreaseRate', val || 0)}
+                  onChange={(val) => setValue('rentIncreaseRate', ensureNumber(val))}
                   error={errors.rentIncreaseRate?.message}
                 />
               </Grid.Col>
