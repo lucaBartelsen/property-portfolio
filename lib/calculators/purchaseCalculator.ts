@@ -1,6 +1,6 @@
 // src/lib/calculators/purchaseCalculator.ts
 import { Property, PurchaseData } from '../types';
-
+import { BUNDESLAENDER } from '../constants';
 /**
  * Berechnet die Kaufkosten für eine Immobilie
  * @param property - Die Immobilie, für die die Kaufkosten berechnet werden sollen
@@ -10,7 +10,8 @@ export function calculatePurchase(property: Property): PurchaseData {
   const { defaults } = property;
   
   const purchasePrice = defaults.purchasePrice;
-  const grunderwerbsteuerRate = parseFloat(defaults.bundesland);
+  const selectedBundesland = BUNDESLAENDER.find(land => land.code === defaults.bundesland) || BUNDESLAENDER[0];
+  const grunderwerbsteuerRate = selectedBundesland.taxRate;
   const notaryRate = defaults.notaryRate;
   const brokerRate = defaults.brokerRate;
   const brokerAsConsulting = defaults.brokerAsConsulting;
