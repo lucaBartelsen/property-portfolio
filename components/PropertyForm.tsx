@@ -1,25 +1,28 @@
 // src/components/PropertyForm.tsx
 import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import {
   TextInput,
   NumberInput,
   Checkbox,
   Button,
   Group,
-  Box,
   Paper,
   Title,
   Select,
   Grid,
   Tabs,
-  Divider,
   Text,
   Radio,
 } from '@mantine/core';
-import { useForm } from 'react-hook-form';
 import { Property, PropertyDefaults } from '../lib/types';
 import { createNewProperty } from '../store/PropertyContext';
 import { v4 as uuidv4 } from 'uuid';
+import { 
+  BUNDESLAENDER, 
+  DEFAULT_PROPERTY_VALUES,
+  MAINTENANCE_DISTRIBUTION_OPTIONS 
+} from '../lib/constants';
 
 interface PropertyFormProps {
   property?: Property;
@@ -35,7 +38,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   );
 
   // Initialize form with property data or defaults
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<PropertyDefaults & { name: string }>({
+  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<PropertyDefaults & { name: string }>({
     defaultValues: {
       name: property?.name || 'Neue Immobilie',
       purchasePrice: property?.defaults.purchasePrice || 316500,
@@ -64,13 +67,22 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
     }
   });
 
-  // Watch values for validation
-  const purchasePrice = watch('purchasePrice');
-  const landValue = watch('landValue');
-  const buildingValue = watch('buildingValue');
-  const furnitureValue = watch('furnitureValue');
+ // Watch values for validation
+  const watchPurchasePrice = watch('purchasePrice');
+  const watchLandValue = watch('landValue');
+  const watchBuildingValue = watch('buildingValue');
+  const watchMaintenanceCost = watch('maintenanceCost');
+  const watchFurnitureValue = watch('furnitureValue');
 
-  const totalAllocation = landValue + buildingValue + furnitureValue;
+  // Convert to numbers with fallbacks
+  const purchasePrice = Number(watchPurchasePrice || 0);
+  const landValue = Number(watchLandValue || 0);
+  const buildingValue = Number(watchBuildingValue || 0);
+  const maintenanceCost = Number(watchMaintenanceCost || 0);
+  const furnitureValue = Number(watchFurnitureValue || 0);
+
+  // Calculate total allocation with maintenance cost included
+  const totalAllocation = landValue + buildingValue + maintenanceCost + furnitureValue;
   const allocationError = Math.abs(totalAllocation - purchasePrice) > 1;
 
   const onSubmit = (data: PropertyDefaults & { name: string }) => {
@@ -141,30 +153,22 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                 />
               </Grid.Col>
               <Grid.Col span={6}>
-                <Select
-                  label="Bundesland"
-                  placeholder="Wählen Sie ein Bundesland"
-                  required
-                  data={[
-                    { value: "3.5", label: "Baden-Württemberg (3.5%)" },
-                    { value: "3.5", label: "Bayern (3.5%)" },
-                    { value: "6.0", label: "Berlin (6.0%)" },
-                    { value: "6.5", label: "Brandenburg (6.5%)" },
-                    { value: "5.0", label: "Bremen (5.0%)" },
-                    { value: "4.5", label: "Hamburg (4.5%)" },
-                    { value: "6.0", label: "Hessen (6.0%)" },
-                    { value: "5.0", label: "Mecklenburg-Vorpommern (5.0%)" },
-                    { value: "5.0", label: "Niedersachsen (5.0%)" },
-                    { value: "6.5", label: "Nordrhein-Westfalen (6.5%)" },
-                    { value: "5.0", label: "Rheinland-Pfalz (5.0%)" },
-                    { value: "6.5", label: "Saarland (6.5%)" },
-                    { value: "3.5", label: "Sachsen (3.5%)" },
-                    { value: "5.0", label: "Sachsen-Anhalt (5.0%)" },
-                    { value: "6.5", label: "Schleswig-Holstein (6.5%)" },
-                    { value: "6.5", label: "Thüringen (6.5%)" },
-                  ]}
-                  {...register('bundesland', { required: true })}
-                  onChange={(val) => setValue('bundesland', val || "3.5")}
+                <Controller
+                  name="bundesland"
+                  control={control}
+                  defaultValue={property?.defaults.bundesland || DEFAULT_PROPERTY_VALUES.bundesland}
+                  render={({ field }) => (
+                    <Select
+                      label="Bundesland"
+                      placeholder="Wählen Sie ein Bundesland"
+                      required
+                      data={BUNDESLAENDER.map(land => ({
+                        value: land.code,
+                        label: `${land.name} (${land.taxRate}%)`
+                      }))}
+                      {...field}
+                    />
+                  )}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -261,26 +265,27 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                 />
               </Grid.Col>
               <Grid.Col span={12}>
-                <Select
-                  label="Verteilung Erhaltungsaufwand"
-                  placeholder="Wählen Sie die Verteilung"
-                  required
-                  data={[
-                    { value: "1", label: "Im 1. Jahr voll absetzen" },
-                    { value: "2", label: "Auf 2 Jahre verteilen" },
-                    { value: "3", label: "Auf 3 Jahre verteilen" },
-                    { value: "4", label: "Auf 4 Jahre verteilen" },
-                    { value: "5", label: "Auf 5 Jahre verteilen" },
-                  ]}
-                  {...register('maintenanceDistribution', { required: true })}
-                  onChange={(val) => setValue('maintenanceDistribution', parseInt(val || "1"))}
+                <Controller
+                  name="maintenanceDistribution"
+                  control={control}
+                  defaultValue={property?.defaults.maintenanceDistribution || DEFAULT_PROPERTY_VALUES.maintenanceDistribution}
+                  render={({ field }) => (
+                    <Select
+                      label="Verteilung Erhaltungsaufwand"
+                      placeholder="Wählen Sie die Verteilung"
+                      required
+                      data={MAINTENANCE_DISTRIBUTION_OPTIONS}
+                      value={String(field.value)}
+                      onChange={(val) => field.onChange(parseInt(val || "1"))}
+                    />
+                  )}
                 />
               </Grid.Col>
               
               {allocationError && (
                 <Grid.Col span={12}>
                   <Text color="red">
-                    Warnung: Die Summe der Kaufpreisaufteilung ({totalAllocation.toFixed(2)} €) entspricht nicht dem Gesamtkaufpreis ({purchasePrice.toFixed(2)} €)!
+                    Warnung: Die Summe der Kaufpreisaufteilung ({Number(totalAllocation).toFixed(2)} €) entspricht nicht dem Gesamtkaufpreis ({Number(purchasePrice).toFixed(2)} €)!
                   </Text>
                 </Grid.Col>
               )}

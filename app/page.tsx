@@ -158,63 +158,33 @@ export default function HomePage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Header */}
-      <header style={{ 
-        height: '70px', 
-        backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[7] : theme.white,
-        borderBottom: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 16px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-          <Burger
-            opened={mobileNavOpen}
-            onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            size="sm"
-            color={theme.colors.gray[6]}
-            mr="xl"
-            sx={{ 
-              '@media (min-width: 768px)': {
-                display: 'none',
-              },
-            }}
-          />
-          <Text weight={700} size="xl">Immobilien-Steuerrechner Deutschland</Text>
-        </div>
-      </header>
+      <header className={`header ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
+      <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+        <Burger
+          opened={mobileNavOpen}
+          onClick={() => setMobileNavOpen(!mobileNavOpen)}
+          size="sm"
+          color={theme.colors.gray[6]}
+          mr="xl"
+          className="burger-button"
+        />
+        <Text weight={700} size="xl">Immobilien-Steuerrechner Deutschland</Text>
+      </div>
+    </header>
 
       <div style={{ display: 'flex', flex: 1 }}>
         {/* Sidebar */}
-        <aside style={{
-          width: '250px',
-          backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[6] : theme.white,
-          borderRight: `1px solid ${theme.colorScheme === 'dark' ? theme.colors.dark[5] : theme.colors.gray[2]}`,
-          padding: '16px',
-          position: 'fixed',
-          top: '70px',
-          bottom: 0,
-          left: 0,
-          zIndex: 99,
-          overflowY: 'auto',
-          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.3s ease',
-          '@media (min-width: 768px)': {
-            transform: 'translateX(0)',
-          } as any,
-        }}>
-          <Text weight={700} size="xl" mb="md">Immobilien-Steuerrechner</Text>
-          
-          <Button 
-            fullWidth 
-            variant={activeTab === 'portfolio' ? 'filled' : 'subtle'}
-            onClick={() => handleTabChange('portfolio')}
-            mb="xs"
-          >
-            Immobilien-Portfolio
-          </Button>
+        <aside className={`sidebar ${mobileNavOpen ? 'sidebar-open' : ''} ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
+        <Text weight={700} size="xl" mb="md">Immobilien-Steuerrechner</Text>
+        
+        <Button 
+          fullWidth 
+          variant={activeTab === 'portfolio' ? 'filled' : 'subtle'}
+          onClick={() => handleTabChange('portfolio')}
+          mb="xs"
+        >
+          Immobilien-Portfolio
+        </Button>
           <Button 
             fullWidth 
             variant={activeTab === 'total-cashflow' ? 'filled' : 'subtle'} 
@@ -247,32 +217,11 @@ export default function HomePage() {
 
         {/* Mobile Sidebar Overlay */}
         {mobileNavOpen && (
-          <div 
-            style={{
-              position: 'fixed',
-              top: '70px',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              zIndex: 98,
-            }}
-            onClick={() => setMobileNavOpen(false)}
-          />
+          <div className="overlay" onClick={() => setMobileNavOpen(false)} />
         )}
 
         {/* Hauptinhalt */}
-        <main style={{
-          flex: 1,
-          padding: '16px',
-          backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[0],
-          marginLeft: 0,
-          width: '100%',
-          transition: 'margin-left 0.3s ease',
-          '@media (min-width: 768px)': {
-            marginLeft: '250px',
-          } as any,
-        }}>
+        <main className={`main-content ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
           <Container size="xl">
             {renderContent()}
           </Container>

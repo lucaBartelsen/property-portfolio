@@ -5,6 +5,7 @@ import { AppState, Property, TaxInfo, YearlyData } from '../lib/types';
 import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
 import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
 import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
+import { DEFAULT_PROPERTY_VALUES } from '../lib/constants';
 
 // Aktionstypen
 type Action = 
@@ -248,30 +249,6 @@ export function createNewProperty(name: string): Property {
     ongoingData: null,
     calculationResults: null,
     yearlyData: null,
-    defaults: {
-      purchasePrice: 316500,
-      bundesland: "3.5",
-      notaryRate: 1.5,
-      brokerRate: 3.0,
-      brokerAsConsulting: true,
-      depreciationRate: 2.0,
-      landValue: 45000,
-      buildingValue: 255000,
-      maintenanceCost: 35000,
-      furnitureValue: 16500,
-      maintenanceDistribution: 1,
-      financingType: 'loan',
-      downPayment: 25000,
-      interestRate: 4.0,
-      repaymentRate: 1.5,
-      monthlyRent: 1200,
-      vacancyRate: 3.0,
-      propertyTax: 500,
-      managementFee: 600,
-      maintenanceReserve: 600,
-      insurance: 300,
-      appreciationRate: 2.0,
-      rentIncreaseRate: 1.5
-    }
+    defaults: { ...DEFAULT_PROPERTY_VALUES }
   };
 }
