@@ -15,29 +15,47 @@ interface CashflowChartProps {
 export default function CashflowChart({ property, combined, onBack }: CashflowChartProps) {
   const { state, dispatch } = usePropertyStore();
   
-  // Verwende useEffect für den Dispatch statt direkt beim Rendern
+  // Calculate cashflow data if not already calculated
   useEffect(() => {
-    // Wenn combined, berechne kombinierte Ergebnisse, falls noch nicht vorhanden
+    // If combined mode is active, calculate combined results if they don't exist
     if (combined && !state.combinedResults) {
       dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
     }
-  }, [combined, state.combinedResults, dispatch]);
+    
+    // If looking at a specific property and it doesn't have results yet, trigger calculation
+    if (property && (!property.calculationResults || !property.yearlyData)) {
+      // We need to dispatch a calculation for this specific property
+      // The simplest way is to update the property which will trigger recalculation
+      dispatch({ type: 'UPDATE_PROPERTY', property });
+    }
+  }, [combined, property, state.combinedResults, dispatch]);
   
-  // Hole die jährlichen Daten
+  // Get yearly data based on mode (combined or single property)
   const yearlyData = combined 
     ? state.combinedResults?.yearlyData 
     : property?.yearlyData;
   
-  // Wenn keine Daten vorhanden sind
+  // If no data is available, show a message
   if (!yearlyData || yearlyData.length === 0) {
     return (
       <Paper p="xl" withBorder>
+        <Group position="apart" mb="md">
+          <Title order={2}>{combined ? "Gesamtcashflow aller Immobilien" : `Cashflow: ${property?.name}`}</Title>
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              Zurück
+            </Button>
+          )}
+        </Group>
         <Text align="center">Keine Daten vorhanden. Bitte führen Sie zuerst die Berechnungen durch.</Text>
+        <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
+          Berechnungen durchführen
+        </Button>
       </Paper>
     );
   }
   
-  // Daten für das Diagramm vorbereiten
+  // Prepare data for the chart
   const chartData = yearlyData.map(data => ({
     year: `Jahr ${data.year}`,
     cashflow: data.cashflow,
@@ -46,12 +64,12 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
     loanBalance: data.loanBalance
   }));
   
-  // Komponententitel
+  // Component title
   const title = combined 
     ? "Gesamtcashflow aller Immobilien" 
     : `Cashflow: ${property?.name}`;
   
-  // Hole die Berechnungsergebnisse
+  // Get calculation results
   const results = combined 
     ? state.combinedResults?.calculationResults 
     : property?.calculationResults;
@@ -144,34 +162,36 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
         </ResponsiveContainer>
       </div>
       
-      <Card mt="lg" withBorder p="md">
-        <Title order={4} mb="sm">Cashflow-Details für das erste Jahr</Title>
-        <Group grow>
-          <div>
-            <Text size="sm" color="dimmed">Mieteinnahmen:</Text>
-            <Text>{formatCurrency(yearlyData[0].rent)}</Text>
+      {yearlyData.length > 0 && (
+        <Card mt="lg" withBorder p="md">
+          <Title order={4} mb="sm">Cashflow-Details für das erste Jahr</Title>
+          <Group grow>
+            <div>
+              <Text size="sm" color="dimmed">Mieteinnahmen:</Text>
+              <Text>{formatCurrency(yearlyData[0].rent)}</Text>
+              
+              <Text size="sm" color="dimmed" mt="sm">Laufende Kosten:</Text>
+              <Text>{formatCurrency(yearlyData[0].ongoingCosts)}</Text>
+              
+              <Text size="sm" color="dimmed" mt="sm">Finanzierungskosten:</Text>
+              <Text>{formatCurrency(yearlyData[0].payment)}</Text>
+            </div>
             
-            <Text size="sm" color="dimmed" mt="sm">Laufende Kosten:</Text>
-            <Text>{formatCurrency(yearlyData[0].ongoingCosts)}</Text>
-            
-            <Text size="sm" color="dimmed" mt="sm">Finanzierungskosten:</Text>
-            <Text>{formatCurrency(yearlyData[0].payment)}</Text>
-          </div>
-          
-          <div>
-            <Text size="sm" color="dimmed">Cashflow vor Steuern:</Text>
-            <Text>{formatCurrency(yearlyData[0].cashflowBeforeTax)}</Text>
-            
-            <Text size="sm" color="dimmed" mt="sm">Steuerersparnis:</Text>
-            <Text>{formatCurrency(yearlyData[0].taxSavings)}</Text>
-            
-            <Text size="sm" color="dimmed" mt="sm">Cashflow nach Steuern:</Text>
-            <Text weight={700} color={yearlyData[0].cashflow >= 0 ? "green" : "red"}>
-              {formatCurrency(yearlyData[0].cashflow)}
-            </Text>
-          </div>
-        </Group>
-      </Card>
+            <div>
+              <Text size="sm" color="dimmed">Cashflow vor Steuern:</Text>
+              <Text>{formatCurrency(yearlyData[0].cashflowBeforeTax)}</Text>
+              
+              <Text size="sm" color="dimmed" mt="sm">Steuerersparnis:</Text>
+              <Text>{formatCurrency(yearlyData[0].taxSavings)}</Text>
+              
+              <Text size="sm" color="dimmed" mt="sm">Cashflow nach Steuern:</Text>
+              <Text weight={700} color={yearlyData[0].cashflow >= 0 ? "green" : "red"}>
+                {formatCurrency(yearlyData[0].cashflow)}
+              </Text>
+            </div>
+          </Group>
+        </Card>
+      )}
     </Card>
   );
 }

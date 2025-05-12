@@ -1,5 +1,5 @@
 // src/components/YearTable.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, Title, Button, Group, Text, Paper, Table, Switch, Pagination } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
 import { Property } from '../lib/types';
@@ -17,39 +17,59 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   
-  // Wenn combined, berechne kombinierte Ergebnisse, falls noch nicht vorhanden
-  if (combined && !state.combinedResults) {
-    dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
-  }
+  // Calculate data if it doesn't exist yet
+  useEffect(() => {
+    // If in combined mode and there are no results yet, trigger calculation
+    if (combined && !state.combinedResults) {
+      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+    }
+    
+    // If looking at a specific property and it has no data, trigger calculation
+    if (property && (!property.calculationResults || !property.yearlyData)) {
+      // Update the property to trigger recalculation
+      dispatch({ type: 'UPDATE_PROPERTY', property });
+    }
+  }, [combined, property, state.combinedResults, dispatch]);
   
-  // Hole die jährlichen Daten
+  // Get yearly data based on mode (combined or single property)
   const yearlyData = combined 
     ? state.combinedResults?.yearlyData 
     : property?.yearlyData;
   
-  // Wenn keine Daten vorhanden sind
-  if (!yearlyData || yearlyData.length === 0) {
-    return (
-      <Paper p="xl" withBorder>
-        <Text align="center">Keine Daten vorhanden. Bitte führen Sie zuerst die Berechnungen durch.</Text>
-      </Paper>
-    );
-  }
-  
-  // Komponententitel
+  // Component title
   const title = combined 
     ? "Gesamtjahrestabelle aller Immobilien" 
     : `Jahrestabelle: ${property?.name}`;
   
-  // Kalkulationsperiode ermitteln
+  // If no data is available, show a message
+  if (!yearlyData || yearlyData.length === 0) {
+    return (
+      <Paper p="xl" withBorder>
+        <Group position="apart" mb="md">
+          <Title order={2}>{title}</Title>
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              Zurück
+            </Button>
+          )}
+        </Group>
+        <Text align="center">Keine Daten vorhanden. Bitte führen Sie zuerst die Berechnungen durch.</Text>
+        <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
+          Berechnungen durchführen
+        </Button>
+      </Paper>
+    );
+  }
+  
+  // Calculation period
   const calculationPeriod = yearlyData.length;
   
-  // Daten für die aktuelle Seite
+  // Data for the current page
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, calculationPeriod);
   const pageData = yearlyData.slice(startIndex, endIndex);
   
-  // Anzahl der Seiten berechnen
+  // Calculate total pages
   const totalPages = Math.ceil(calculationPeriod / itemsPerPage);
   
   return (
@@ -138,7 +158,7 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
               ))}
             </tr>
             
-            {/* Abschreibungen & Steuern (vereinfacht) */}
+            {/* Steuerersparnis */}
             <tr>
               <td><b>Steuerersparnis</b></td>
               {pageData.map((data, index) => (
@@ -191,11 +211,14 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                 {/* Eigenkapitalrendite */}
                 <tr>
                   <td>Eigenkapitalrendite (%)</td>
-                  {pageData.map((data, index) => (
-                    <td key={index} style={{ color: (data.cashflow / data.initialEquity) * 100 >= 0 ? 'green' : 'red' }}>
-                      {((data.cashflow / data.initialEquity) * 100).toFixed(2)} %
-                    </td>
-                  ))}
+                  {pageData.map((data, index) => {
+                    const roi = data.initialEquity > 0 ? (data.cashflow / data.initialEquity) * 100 : 0;
+                    return (
+                      <td key={index} style={{ color: roi >= 0 ? 'green' : 'red' }}>
+                        {roi.toFixed(2)} %
+                      </td>
+                    );
+                  })}
                 </tr>
               </>
             )}

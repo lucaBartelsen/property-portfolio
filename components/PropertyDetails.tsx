@@ -1,7 +1,9 @@
 // src/components/PropertyDetails.tsx
+import { useEffect } from 'react';
 import { Card, Title, Button, Group, Text, Grid, Divider } from '@mantine/core';
 import { Property } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
+import { usePropertyStore } from '../store/PropertyContext';
 
 interface PropertyDetailsProps {
   property: Property;
@@ -9,6 +11,16 @@ interface PropertyDetailsProps {
 }
 
 export default function PropertyDetails({ property, onBack }: PropertyDetailsProps) {
+  const { dispatch } = usePropertyStore();
+  
+  // Calculate data if it doesn't exist yet
+  useEffect(() => {
+    if (!property.purchaseData || !property.ongoingData || !property.calculationResults) {
+      // Update the property to trigger calculations
+      dispatch({ type: 'UPDATE_PROPERTY', property });
+    }
+  }, [property, dispatch]);
+  
   const purchaseData = property.purchaseData;
   const ongoingData = property.ongoingData;
   const results = property.calculationResults;
@@ -22,7 +34,10 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
             Zurück
           </Button>
         </Group>
-        <Text align="center" py="xl">Keine Daten vorhanden. Bitte führen Sie die Berechnungen durch.</Text>
+        <Text align="center" py="xl">Daten werden berechnet...</Text>
+        <Button fullWidth onClick={() => dispatch({ type: 'UPDATE_PROPERTY', property })}>
+          Berechnungen durchführen
+        </Button>
       </Card>
     );
   }

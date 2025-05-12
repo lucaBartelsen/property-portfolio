@@ -36,7 +36,7 @@ export default function HomePage() {
     propertyId: string;
   } | null>(null);
   
-  // Erstelle eine Standardimmobilie, wenn keine vorhanden ist
+  // Create a default property if none exists
   useEffect(() => {
     if (state.properties.length === 0) {
       const newProperty = createNewProperty('Immobilie 1');
@@ -55,6 +55,10 @@ export default function HomePage() {
   const handleDeleteProperty = (id: string) => {
     if (window.confirm('Möchten Sie diese Immobilie wirklich löschen?')) {
       dispatch({ type: 'DELETE_PROPERTY', id });
+      // If we were viewing a detail of the deleted property, go back to the portfolio
+      if (detailView && detailView.propertyId === id) {
+        setDetailView(null);
+      }
     }
   };
 
@@ -71,20 +75,32 @@ export default function HomePage() {
       // Add new property
       dispatch({ type: 'ADD_PROPERTY', property });
     }
+    setModalOpened(false);
   };
 
   const handleViewPropertyDetails = (type: 'overview' | 'cashflow' | 'yeartable', id: string) => {
     setDetailView({ type, propertyId: id });
   };
 
+  const handleUpdateAllCalculations = () => {
+    // Update all properties to trigger recalculation
+    state.properties.forEach(property => {
+      dispatch({ type: 'UPDATE_PROPERTY', property });
+    });
+    // Also recalculate combined results
+    dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+  };
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    // Mobile Nav schließen, wenn ein Tab ausgewählt wird
+    // Close mobile nav when a tab is selected
     setMobileNavOpen(false);
+    // Clear any detail view when changing tabs
+    setDetailView(null);
   };
 
   const renderContent = () => {
-    // Wenn eine Detailansicht aktiv ist
+    // If a detail view is active
     if (detailView) {
       const property = state.properties.find(p => p.id === detailView.propertyId);
       if (!property) {
@@ -101,7 +117,7 @@ export default function HomePage() {
       }
     }
     
-    // Sonst Tab-Inhalte anzeigen
+    // Otherwise show tab content
     switch (activeTab) {
       case 'portfolio':
         return (
@@ -159,32 +175,32 @@ export default function HomePage() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Header */}
       <header className={`header ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
-      <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-        <Burger
-          opened={mobileNavOpen}
-          onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          size="sm"
-          color={theme.colors.gray[6]}
-          mr="xl"
-          className="burger-button"
-        />
-        <Text weight={700} size="xl">Immobilien-Steuerrechner Deutschland</Text>
-      </div>
-    </header>
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+          <Burger
+            opened={mobileNavOpen}
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            size="sm"
+            color={theme.colors.gray[6]}
+            mr="xl"
+            className="burger-button"
+          />
+          <Text weight={700} size="xl">Immobilien-Steuerrechner Deutschland</Text>
+        </div>
+      </header>
 
       <div style={{ display: 'flex', flex: 1 }}>
         {/* Sidebar */}
         <aside className={`sidebar ${mobileNavOpen ? 'sidebar-open' : ''} ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
-        <Text weight={700} size="xl" mb="md">Immobilien-Steuerrechner</Text>
-        
-        <Button 
-          fullWidth 
-          variant={activeTab === 'portfolio' ? 'filled' : 'subtle'}
-          onClick={() => handleTabChange('portfolio')}
-          mb="xs"
-        >
-          Immobilien-Portfolio
-        </Button>
+          <Text weight={700} size="xl" mb="md">Immobilien-Steuerrechner</Text>
+          
+          <Button 
+            fullWidth 
+            variant={activeTab === 'portfolio' ? 'filled' : 'subtle'}
+            onClick={() => handleTabChange('portfolio')}
+            mb="xs"
+          >
+            Immobilien-Portfolio
+          </Button>
           <Button 
             fullWidth 
             variant={activeTab === 'total-cashflow' ? 'filled' : 'subtle'} 
@@ -210,7 +226,12 @@ export default function HomePage() {
             Steuerinformationen
           </Button>
           
-          <Button variant="default" fullWidth mt="xl">
+          <Button 
+            variant="default" 
+            fullWidth 
+            mt="xl"
+            onClick={handleUpdateAllCalculations}
+          >
             Berechnungen aktualisieren
           </Button>
         </aside>
@@ -220,7 +241,7 @@ export default function HomePage() {
           <div className="overlay" onClick={() => setMobileNavOpen(false)} />
         )}
 
-        {/* Hauptinhalt */}
+        {/* Main content */}
         <main className={`main-content ${theme.colorScheme === 'dark' ? 'dark' : ''}`}>
           <Container size="xl">
             {renderContent()}

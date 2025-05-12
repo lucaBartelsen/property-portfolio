@@ -58,8 +58,40 @@ function propertyReducer(state: AppState, action: Action): AppState {
       const updatedProperties = [...state.properties];
       const index = updatedProperties.findIndex(p => p.id === action.property.id);
       if (index !== -1) {
-        updatedProperties[index] = action.property;
+        // Check if the property has calculations already
+        const property = action.property;
+        
+        // Calculate purchaseData if not available
+        const purchaseData = property.purchaseData || calculatePurchase(property);
+        
+        // Calculate ongoingData if not available
+        const ongoingData = property.ongoingData || calculateOngoing(property);
+        
+        // Calculate cashflow if not available
+        let calculationResults = property.calculationResults;
+        let yearlyData = property.yearlyData;
+        
+        if (!calculationResults || !yearlyData) {
+          const calculationPeriod = 10; // This should come from a UI value
+          const { results, yearlyData: newYearlyData } = calculateCashflow(
+            { ...property, purchaseData, ongoingData },
+            state.taxInfo,
+            calculationPeriod
+          );
+          calculationResults = results;
+          yearlyData = newYearlyData;
+        }
+        
+        // Update the property with calculated data
+        updatedProperties[index] = {
+          ...property,
+          purchaseData,
+          ongoingData,
+          calculationResults,
+          yearlyData
+        };
       }
+      
       return {
         ...state,
         properties: updatedProperties,
