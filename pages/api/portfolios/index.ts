@@ -72,7 +72,7 @@ export default async function handler(
       
       const portfolio = await prisma.portfolio.findFirst({
         where: { 
-            id: portfolioId,
+            id: portfolioId, // Use the actual field name from the schema
             customer: {
             userId
             }
@@ -100,7 +100,7 @@ export default async function handler(
         // Convert to your application's TaxInfo type
         const taxInfo: TaxInfo = {
         annualIncome: dbTaxInfo.annualIncome,
-        taxStatus: dbTaxInfo.taxStatus,  // This should now be correctly typed
+        taxStatus: dbTaxInfo.taxStatus as 'single' | 'married',  // This should now be correctly typed
         hasChurchTax: dbTaxInfo.hasChurchTax,
         churchTaxRate: dbTaxInfo.churchTaxRate,
         taxRate: dbTaxInfo.taxRate

@@ -114,7 +114,7 @@ export default async function handler(
         where: { customerId },
         update: {
           annualIncome,
-          taxStatus: taxStatus as TaxStatus,  // Use the enum type here
+          taxStatus: taxStatus as 'single' | 'married', // Use the enum type here
           hasChurchTax: hasChurchTax || false,
           churchTaxRate: churchTaxRate || 9,
           taxRate
@@ -122,7 +122,7 @@ export default async function handler(
         create: {
           customerId,
           annualIncome,
-          taxStatus: taxStatus as TaxStatus,  // Use the enum type here
+          taxStatus: taxStatus as 'single' | 'married',  // Use the enum type here
           hasChurchTax: hasChurchTax || false,
           churchTaxRate: churchTaxRate || 9,
           taxRate
