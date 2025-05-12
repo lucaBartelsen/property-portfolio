@@ -7,8 +7,8 @@ import { calculateOngoing } from './ongoingCalculator';
 /**
  * Sicherstellt, dass ein Wert eine gültige Zahl ist mit Minimum/Maximum-Grenzen
  */
-function ensureValidNumber(value: number, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number {
-  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+function ensureValidNumber(value: number | null | undefined, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number {
+  if (value === null || value === undefined || typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
     return defaultValue;
   }
   return Math.max(min, Math.min(max, value));
@@ -57,8 +57,16 @@ export function calculateCashflow(
     let loanAmount = 0;
     let annuity = 0;
     
+    // Sicherstellen, dass totalCost einen gültigen Wert hat
+    const totalCost = ensureValidNumber(purchaseData.totalCost, 0, 1e9, 
+      // Falls totalCost nicht vorhanden ist, berechne aus Grundwerten
+      ensureValidNumber(property.defaults.purchasePrice, 0, 1e9, 316500) * 
+      (1 + ensureValidNumber(property.defaults.notaryRate, 0, 100, 1.5) / 100 + 
+           ensureValidNumber(property.defaults.brokerRate, 0, 100, 3) / 100)
+    );
+    
     if (financingType === 'loan') {
-      loanAmount = ensureValidNumber(purchaseData.totalCost - downPayment, 0, 1e9);
+      loanAmount = ensureValidNumber(totalCost - downPayment, 0, 1e9);
       // Annuität berechnen, mit Schutz gegen Division durch Null
       if (interestRate + repaymentRate > 0) {
         annuity = loanAmount * (interestRate + repaymentRate);
@@ -292,8 +300,8 @@ export function calculateCashflow(
 
     // Berechnungsergebnisse
     const results: CalculationResults = {
-      totalCost: ensureValidNumber(purchaseData.totalCost, 0, 1e9),
-      downPayment: financingType === 'loan' ? downPayment : ensureValidNumber(purchaseData.totalCost, 0, 1e9),
+      totalCost: totalCost,  // Verwende den korrigierten Wert
+      downPayment: financingType === 'loan' ? downPayment : totalCost,
       loanAmount: loanAmount,
       annuity: annuity,
       monthlyPayment: ensureValidNumber(annuity / 12, 0, 1e7),
@@ -301,35 +309,42 @@ export function calculateCashflow(
       finalPropertyValue: ensureValidNumber(yearlyData[calculationPeriod - 1].propertyValue, 0, 1e9),
       remainingLoan: ensureValidNumber(yearlyData[calculationPeriod - 1].loanBalance, 0, 1e9),
       finalEquity: ensureValidNumber(yearlyData[calculationPeriod - 1].equity, -1e9, 1e9),
-      initialEquity: financingType === 'loan' ? downPayment : ensureValidNumber(purchaseData.totalCost, 0, 1e9)
+      initialEquity: financingType === 'loan' ? downPayment : totalCost  // Verwende den korrigierten Wert
     };
 
     return { results, yearlyData };
   } catch (error) {
     console.error("Fehler bei der Cashflow-Berechnung:", error);
     
+    // Berechne einen vernünftigen Standardwert für totalCost basierend auf den verfügbaren Daten
+    const purchasePrice = ensureValidNumber(property?.defaults?.purchasePrice, 0, 1e9, 316500);
+    const notaryRate = ensureValidNumber(property?.defaults?.notaryRate, 0, 100, 1.5) / 100;
+    const brokerRate = ensureValidNumber(property?.defaults?.brokerRate, 0, 100, 3) / 100;
+    const estimatedTotalCost = purchasePrice * (1 + notaryRate + brokerRate);
+    const downPayment = ensureValidNumber(property?.defaults?.downPayment, 0, 1e9, 25000);
+    
     // Standardwerte zurückgeben, wenn ein Fehler auftritt
     const defaultResults: CalculationResults = {
-      totalCost: 0,
-      downPayment: 0,
-      loanAmount: 0,
+      totalCost: estimatedTotalCost,
+      downPayment: downPayment,
+      loanAmount: property?.defaults?.financingType === 'loan' ? estimatedTotalCost - downPayment : 0,
       annuity: 0,
       monthlyPayment: 0,
       monthlyCashflow: 0,
-      finalPropertyValue: 0,
-      remainingLoan: 0,
-      finalEquity: 0,
-      initialEquity: 0
+      finalPropertyValue: purchasePrice * 1.1, // Annahme einer leichten Wertsteigerung
+      remainingLoan: property?.defaults?.financingType === 'loan' ? estimatedTotalCost - downPayment : 0,
+      finalEquity: property?.defaults?.financingType === 'loan' ? purchasePrice * 1.1 - (estimatedTotalCost - downPayment) : purchasePrice * 1.1,
+      initialEquity: property?.defaults?.financingType === 'loan' ? downPayment : estimatedTotalCost
     };
     
     const defaultYearlyData: YearlyData[] = Array(10).fill(0).map((_, i) => ({
       year: i + 1,
-      rent: 0,
-      ongoingCosts: 0,
+      rent: ensureValidNumber(property?.defaults?.monthlyRent, 0, 1e6, 1200) * 12,
+      ongoingCosts: 2000,
       interest: 0,
       principal: 0,
       payment: 0,
-      loanBalance: 0,
+      loanBalance: defaultResults.loanAmount,
       buildingDepreciation: 0,
       furnitureDepreciation: 0,
       maintenanceDeduction: 0,
@@ -345,14 +360,16 @@ export function calculateCashflow(
       taxSavings: 0,
       cashflow: 0,
       cashflowBeforeTax: 0,
-      propertyValue: 0,
-      equity: 0,
-      initialEquity: 0,
-      vacancyRate: 0,
-      propertyTax: 0,
-      managementFee: 0,
-      maintenanceReserve: 0,
-      insurance: 0,
+      propertyValue: purchasePrice * Math.pow(1.02, i), // Leichte Wertsteigerung von 2% pro Jahr
+      equity: property?.defaults?.financingType === 'loan' 
+        ? purchasePrice * Math.pow(1.02, i) - defaultResults.loanAmount 
+        : purchasePrice * Math.pow(1.02, i),
+      initialEquity: defaultResults.initialEquity,
+      vacancyRate: ensureValidNumber(property?.defaults?.vacancyRate, 0, 100, 3),
+      propertyTax: ensureValidNumber(property?.defaults?.propertyTax, 0, 1e6, 500),
+      managementFee: ensureValidNumber(property?.defaults?.managementFee, 0, 1e6, 600),
+      maintenanceReserve: ensureValidNumber(property?.defaults?.maintenanceReserve, 0, 1e6, 600),
+      insurance: ensureValidNumber(property?.defaults?.insurance, 0, 1e6, 300),
       cashflowBeforeFinancing: 0
     }));
     

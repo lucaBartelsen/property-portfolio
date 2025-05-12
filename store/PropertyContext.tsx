@@ -1,4 +1,4 @@
-// src/store/PropertyContext.tsx
+// src/store/PropertyContext.tsx - with fix to calculate immediately on save
 import { createContext, useContext, useReducer, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { AppState, Property, TaxInfo, YearlyData } from '../lib/types';
@@ -40,6 +40,35 @@ const PropertyContext = createContext<{
   dispatch: () => null,
 });
 
+// Berechnet alle Daten für eine Immobilie
+function calculatePropertyData(property: Property, taxInfo: TaxInfo): Property {
+  try {
+    // Berechne Kauf- und laufende Daten
+    const purchaseData = calculatePurchase(property);
+    const ongoingData = calculateOngoing(property);
+    
+    // Berechne Cashflow
+    const calculationPeriod = 10; // Standard-Betrachtungszeitraum
+    const { results, yearlyData } = calculateCashflow(
+      { ...property, purchaseData, ongoingData },
+      taxInfo,
+      calculationPeriod
+    );
+    
+    // Aktualisiere die Immobilie mit berechneten Daten
+    return {
+      ...property,
+      purchaseData,
+      ongoingData,
+      calculationResults: results,
+      yearlyData
+    };
+  } catch (error) {
+    console.error("Fehler bei der Berechnung der Immobiliendaten:", error);
+    return property;
+  }
+}
+
 // Reducer-Funktion
 function propertyReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -48,48 +77,24 @@ function propertyReducer(state: AppState, action: Action): AppState {
         ...state,
         activePropertyIndex: action.index
       };
-    case 'ADD_PROPERTY':
+    case 'ADD_PROPERTY': {
+      // Bei neuer Immobilie sofort alle Berechnungen durchführen
+      const newPropertyWithCalculations = calculatePropertyData(action.property, state.taxInfo);
+      
       return {
         ...state,
-        properties: [...state.properties, action.property],
-        activePropertyIndex: state.properties.length
+        properties: [...state.properties, newPropertyWithCalculations],
+        activePropertyIndex: state.properties.length,
+        combinedResults: null // Reset combined results to force recalculation
       };
+    }
     case 'UPDATE_PROPERTY': {
       const updatedProperties = [...state.properties];
       const index = updatedProperties.findIndex(p => p.id === action.property.id);
       if (index !== -1) {
-        // Check if the property has calculations already
-        const property = action.property;
-        
-        // Calculate purchaseData if not available
-        const purchaseData = property.purchaseData || calculatePurchase(property);
-        
-        // Calculate ongoingData if not available
-        const ongoingData = property.ongoingData || calculateOngoing(property);
-        
-        // Calculate cashflow if not available
-        let calculationResults = property.calculationResults;
-        let yearlyData = property.yearlyData;
-        
-        if (!calculationResults || !yearlyData) {
-          const calculationPeriod = 10; // This should come from a UI value
-          const { results, yearlyData: newYearlyData } = calculateCashflow(
-            { ...property, purchaseData, ongoingData },
-            state.taxInfo,
-            calculationPeriod
-          );
-          calculationResults = results;
-          yearlyData = newYearlyData;
-        }
-        
-        // Update the property with calculated data
-        updatedProperties[index] = {
-          ...property,
-          purchaseData,
-          ongoingData,
-          calculationResults,
-          yearlyData
-        };
+        // Bei Update sofort alle Berechnungen durchführen
+        const updatedPropertyWithCalculations = calculatePropertyData(action.property, state.taxInfo);
+        updatedProperties[index] = updatedPropertyWithCalculations;
       }
       
       return {
@@ -116,12 +121,19 @@ function propertyReducer(state: AppState, action: Action): AppState {
         combinedResults: null // Reset combined results to force recalculation
       };
     }
-    case 'UPDATE_TAX_INFO':
+    case 'UPDATE_TAX_INFO': {
+      // Bei Steueränderungen alle Immobilien neu berechnen
+      const updatedProperties = state.properties.map(property => 
+        calculatePropertyData(property, action.taxInfo)
+      );
+      
       return {
         ...state,
         taxInfo: action.taxInfo,
+        properties: updatedProperties,
         combinedResults: null // Reset combined results to force recalculation
       };
+    }
     case 'CALCULATE_COMBINED_RESULTS': {
         // Berechne kombinierte Ergebnisse
         const { properties, taxInfo } = state;
@@ -130,25 +142,7 @@ function propertyReducer(state: AppState, action: Action): AppState {
         // Berechne alle Immobilien, wenn nötig
         const updatedProperties = properties.map(property => {
             if (!property.calculationResults || !property.yearlyData) {
-            // Berechne Kauf- und laufende Daten
-            const purchaseData = calculatePurchase(property);
-            const ongoingData = calculateOngoing(property);
-            
-            // Berechne Cashflow
-            const { results, yearlyData } = calculateCashflow(
-                { ...property, purchaseData, ongoingData },
-                taxInfo,
-                calculationPeriod
-            );
-            
-            // Aktualisiere Immobilie
-            return {
-                ...property,
-                purchaseData,
-                ongoingData,
-                calculationResults: results,
-                yearlyData
-            };
+              return calculatePropertyData(property, taxInfo);
             }
             return property;
         });
