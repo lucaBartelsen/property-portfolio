@@ -179,7 +179,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
             <Tabs.Tab value="rendite">Kapitalwert & Rendite</Tabs.Tab>
           </Tabs.List>
 
-          {/* Immobiliendaten Tab */}
+           {/* Immobiliendaten Tab */}
           <Tabs.Panel value="immobiliendaten" pt="xs">
             <Grid>
               <Grid.Col span={6}>
@@ -188,8 +188,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 316500"
                   required
                   min={0}
-                  {...register('purchasePrice', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('purchasePrice')}
                   onChange={(val) => setValue('purchasePrice', val || 0)}
+                  error={errors.purchasePrice?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -219,8 +221,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={10}
                   step={0.1}
                   precision={1}
-                  {...register('notaryRate', { required: true, min: 0, max: 10 })}
+                  value={watch('notaryRate')}
                   onChange={(val) => setValue('notaryRate', val || 0)}
+                  error={errors.notaryRate?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -232,14 +235,14 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={10}
                   step={0.1}
                   precision={1}
-                  {...register('brokerRate', { required: true, min: 0, max: 10 })}
+                  value={watch('brokerRate')}
                   onChange={(val) => setValue('brokerRate', val || 0)}
+                  error={errors.brokerRate?.message}
                 />
               </Grid.Col>
               <Grid.Col span={12}>
                 <Checkbox
                   label="Maklerkosten als Beratungsleistung (sofortige Absetzung im 1. Jahr)"
-                  {...register('brokerAsConsulting')}
                   checked={watch('brokerAsConsulting')}
                   onChange={(e) => setValue('brokerAsConsulting', e.currentTarget.checked)}
                 />
@@ -253,8 +256,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={10}
                   step={0.1}
                   precision={1}
-                  {...register('depreciationRate', { required: true, min: 0, max: 10 })}
+                  value={watch('depreciationRate')}
                   onChange={(val) => setValue('depreciationRate', val || 0)}
+                  error={errors.depreciationRate?.message}
                 />
               </Grid.Col>
             </Grid>
@@ -269,8 +273,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 45000"
                   required
                   min={0}
-                  {...register('landValue', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('landValue')}
                   onChange={(val) => setValue('landValue', val || 0)}
+                  error={errors.landValue?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -279,8 +285,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 255000"
                   required
                   min={0}
-                  {...register('buildingValue', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('buildingValue')}
                   onChange={(val) => setValue('buildingValue', val || 0)}
+                  error={errors.buildingValue?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -289,8 +297,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 35000"
                   required
                   min={0}
-                  {...register('maintenanceCost', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('maintenanceCost')}
                   onChange={(val) => setValue('maintenanceCost', val || 0)}
+                  error={errors.maintenanceCost?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -299,8 +309,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 16500"
                   required
                   min={0}
-                  {...register('furnitureValue', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('furnitureValue')}
                   onChange={(val) => setValue('furnitureValue', val || 0)}
+                  error={errors.furnitureValue?.message}
                 />
               </Grid.Col>
               <Grid.Col span={12}>
@@ -351,8 +363,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     placeholder="z.B. 25000"
                     required
                     min={0}
-                    {...register('downPayment', { required: true, min: 0 })}
+                    precision={0}
+                    value={watch('downPayment')}
                     onChange={(val) => setValue('downPayment', val || 0)}
+                    error={errors.downPayment?.message}
                   />
                 </Grid.Col>
                 <Grid.Col span={4}>
@@ -364,8 +378,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     max={20}
                     step={0.01}
                     precision={2}
-                    {...register('interestRate', { required: true, min: 0, max: 20 })}
+                    value={watch('interestRate')}
                     onChange={(val) => setValue('interestRate', val || 0)}
+                    error={errors.interestRate?.message}
                   />
                 </Grid.Col>
                 <Grid.Col span={4}>
@@ -377,8 +392,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     max={20}
                     step={0.1}
                     precision={1}
-                    {...register('repaymentRate', { required: true, min: 0, max: 20 })}
+                    value={watch('repaymentRate')}
                     onChange={(val) => setValue('repaymentRate', val || 0)}
+                    error={errors.repaymentRate?.message}
                   />
                 </Grid.Col>
               </Grid>
@@ -394,8 +410,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 1200"
                   required
                   min={0}
-                  {...register('monthlyRent', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('monthlyRent')}
                   onChange={(val) => setValue('monthlyRent', val || 0)}
+                  error={errors.monthlyRent?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -407,8 +425,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={100}
                   step={0.1}
                   precision={1}
-                  {...register('vacancyRate', { required: true, min: 0, max: 100 })}
+                  value={watch('vacancyRate')}
                   onChange={(val) => setValue('vacancyRate', val || 0)}
+                  error={errors.vacancyRate?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -417,8 +436,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 500"
                   required
                   min={0}
-                  {...register('propertyTax', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('propertyTax')}
                   onChange={(val) => setValue('propertyTax', val || 0)}
+                  error={errors.propertyTax?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -427,8 +448,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 600"
                   required
                   min={0}
-                  {...register('managementFee', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('managementFee')}
                   onChange={(val) => setValue('managementFee', val || 0)}
+                  error={errors.managementFee?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -437,8 +460,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 600"
                   required
                   min={0}
-                  {...register('maintenanceReserve', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('maintenanceReserve')}
                   onChange={(val) => setValue('maintenanceReserve', val || 0)}
+                  error={errors.maintenanceReserve?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -447,8 +472,10 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   placeholder="z.B. 300"
                   required
                   min={0}
-                  {...register('insurance', { required: true, min: 0 })}
+                  precision={0}
+                  value={watch('insurance')}
                   onChange={(val) => setValue('insurance', val || 0)}
+                  error={errors.insurance?.message}
                 />
               </Grid.Col>
             </Grid>
@@ -466,8 +493,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={20}
                   step={0.1}
                   precision={1}
-                  {...register('appreciationRate', { required: true, min: 0, max: 20 })}
+                  value={watch('appreciationRate')}
                   onChange={(val) => setValue('appreciationRate', val || 0)}
+                  error={errors.appreciationRate?.message}
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -479,8 +507,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   max={20}
                   step={0.1}
                   precision={1}
-                  {...register('rentIncreaseRate', { required: true, min: 0, max: 20 })}
+                  value={watch('rentIncreaseRate')}
                   onChange={(val) => setValue('rentIncreaseRate', val || 0)}
+                  error={errors.rentIncreaseRate?.message}
                 />
               </Grid.Col>
             </Grid>
