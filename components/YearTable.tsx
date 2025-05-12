@@ -1,8 +1,8 @@
 // src/components/YearTable.tsx
 import { useState, useEffect } from 'react';
-import { Card, Title, Button, Group, Text, Paper, Table, Switch, Pagination } from '@mantine/core';
+import { Card, Title, Button, Group, Text, Paper, Table, Switch, Pagination, Checkbox } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
-import { Property } from '../lib/types';
+import { Property, YearlyData } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
 
 interface YearTableProps {
@@ -15,6 +15,7 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
   const { state, dispatch } = usePropertyStore();
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const itemsPerPage = 5;
   
   // Calculate data if it doesn't exist yet
@@ -71,6 +72,131 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
   
   // Calculate total pages
   const totalPages = Math.ceil(calculationPeriod / itemsPerPage);
+
+  // Toggle category expansion
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(cat => cat !== category) 
+        : [...prev, category]
+    );
+  };
+
+  // Check if a category is expanded
+  const isCategoryExpanded = (category: string) => {
+    return expandedCategories.includes(category);
+  };
+
+  // Expand all categories
+  const expandAll = () => {
+    setExpandedCategories(['income', 'costs', 'financing', 'tax', 'assets']);
+  };
+
+  // Collapse all categories
+  const collapseAll = () => {
+    setExpandedCategories([]);
+  };
+
+  // Export table data as CSV
+  const exportToCsv = () => {
+    if (!yearlyData) return;
+
+    // Create CSV content
+    let csvContent = 'Kategorie';
+    
+    // Years as column headers
+    for (let i = 0; i < calculationPeriod; i++) {
+      csvContent += `;Jahr ${i + 1}`;
+    }
+    csvContent += '\n';
+    
+    // Add data rows
+    
+    // 1. Rent income
+    csvContent += addCsvRow('Mieteinnahmen', (data: YearlyData) => data.rent);
+    csvContent += addCsvRow('  Mieteinnahmen (brutto)', (data: YearlyData) => data.rent * 100/(100-data.vacancyRate));
+    csvContent += addCsvRow('  Leerstand', (data: YearlyData) => -(data.rent * 100/(100-data.vacancyRate) - data.rent));
+    csvContent += addCsvRow('  Effektive Mieteinnahmen', (data: YearlyData) => data.rent);
+    
+    // 2. Operating costs
+    csvContent += addCsvRow('Bewirtschaftungskosten', (data: YearlyData) => data.ongoingCosts);
+    csvContent += addCsvRow('  Grundsteuer', (data: YearlyData) => data.propertyTax);
+    csvContent += addCsvRow('  Hausverwaltung', (data: YearlyData) => data.managementFee);
+    csvContent += addCsvRow('  Instandhaltungsrücklage', (data: YearlyData) => data.maintenanceReserve);
+    csvContent += addCsvRow('  Versicherungen', (data: YearlyData) => data.insurance);
+    
+    // 3. Cashflow before financing
+    csvContent += addCsvRow('Cashflow vor Finanzierung', (data: YearlyData) => data.cashflowBeforeFinancing);
+    
+    // 4. Financing
+    csvContent += addCsvRow('Finanzierung', (data: YearlyData) => data.payment);
+    csvContent += addCsvRow('  Zinsanteil', (data: YearlyData) => data.interest);
+    csvContent += addCsvRow('  Tilgungsanteil', (data: YearlyData) => data.principal);
+    
+    // 5. Cashflow before tax
+    csvContent += addCsvRow('Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
+    
+    // 6. Depreciation & tax
+    csvContent += addCsvRow('Abschreibungen & Steuern', (data: YearlyData) => data.totalDepreciation);
+    csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => data.buildingDepreciation);
+    csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => data.furnitureDepreciation);
+    csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => data.maintenanceDeduction);
+    csvContent += addCsvRow('  Ergebnis vor Steuern', (data: YearlyData) => data.taxableIncome);
+    csvContent += addCsvRow('  Zu versteuerndes Einkommen (vorher)', (data: YearlyData) => data.previousIncome);
+    csvContent += addCsvRow('  Neues zu versteuerndes Gesamteinkommen', (data: YearlyData) => data.newTotalIncome);
+    csvContent += addCsvRow('  Einkommensteuer (vorher)', (data: YearlyData) => data.previousTax);
+    csvContent += addCsvRow('  Einkommensteuer (nachher)', (data: YearlyData) => data.newTax);
+    csvContent += addCsvRow('  Kirchensteuer (vorher)', (data: YearlyData) => data.previousChurchTax);
+    csvContent += addCsvRow('  Kirchensteuer (nachher)', (data: YearlyData) => data.newChurchTax);
+    
+    // 7. Tax savings
+    csvContent += addCsvRow('Steuerersparnis', (data: YearlyData) => data.taxSavings);
+    
+    // 8. Cashflow after tax
+    csvContent += addCsvRow('Cashflow nach Steuern', (data: YearlyData) => data.cashflow);
+    
+    // 9. Assets
+    csvContent += addCsvRow('Vermögenswerte', (data: YearlyData) => data.equity);
+    csvContent += addCsvRow('  Immobilienwert', (data: YearlyData) => data.propertyValue);
+    csvContent += addCsvRow('  Restschuld', (data: YearlyData) => data.loanBalance);
+    csvContent += addCsvRow('  Eigenkapital', (data: YearlyData) => data.equity);
+    csvContent += addCsvRow('  Eigenkapitalrendite (%)', (data: YearlyData) => (data.cashflow / data.initialEquity * 100), true);
+
+    // Create and download CSV file
+    downloadCsv(csvContent, 'immobilien-jahresuebersicht.csv');
+  };
+
+  // Helper function to add a row to the CSV content
+  const addCsvRow = (
+    label: string, 
+    valueFunction: (data: YearlyData) => number, 
+    isPercentage: boolean = false
+  ): string => {
+    let rowContent = label;
+    
+    yearlyData.forEach((data) => {
+      const value = valueFunction(data);
+      
+      if (isPercentage) {
+        rowContent += ';' + value.toFixed(2).replace('.', ',') + '%';
+      } else {
+        rowContent += ';' + value.toFixed(2).replace('.', ',');
+      }
+    });
+    
+    return rowContent + '\n';
+  };
+
+  // Helper function to download CSV
+  const downloadCsv = (content: string, filename: string) => {
+    const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + content);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   return (
     <Card p="md" withBorder>
@@ -91,9 +217,24 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
         />
         
         <Button.Group>
-          <Button variant="light" compact>Als CSV exportieren</Button>
-          <Button variant="light" compact>Alle aufklappen</Button>
-          <Button variant="light" compact>Alle zuklappen</Button>
+          <Button 
+            variant="light"
+            onClick={exportToCsv}
+          >
+            CSV Export
+          </Button>
+          <Button 
+            variant="light"
+            onClick={expandAll}
+          >
+            Alle aufklappen
+          </Button>
+          <Button 
+            variant="light"
+            onClick={collapseAll}
+          >
+            Alle zuklappen
+          </Button>
         </Button.Group>
       </Group>
       
@@ -101,120 +242,364 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
         <Table striped highlightOnHover>
           <thead>
             <tr>
-              <th>Kategorie</th>
+              <th style={{ minWidth: '200px' }}>Kategorie</th>
               {pageData.map((data) => (
-                <th key={data.year}>Jahr {data.year}</th>
+                <th key={data.year} style={{ minWidth: '120px', textAlign: 'right' }}>Jahr {data.year}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {/* Mieteinnahmen */}
-            <tr>
-              <td><b>Mieteinnahmen</b></td>
+            {/* 1. Mieteinnahmen */}
+            <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleCategory('income')}>
+              <td>
+                <Group spacing="xs">
+                  <span>{isCategoryExpanded('income') ? '▼' : '▶'}</span>
+                  <b>Mieteinnahmen</b>
+                </Group>
+              </td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.rent > 0 ? 'green' : 'inherit' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.rent > 0 ? 'green' : 'inherit' }}>
                   {formatCurrency(data.rent)}
                 </td>
               ))}
             </tr>
+            {isCategoryExpanded('income') && (
+              <>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Mieteinnahmen (brutto)</td>
+                  {pageData.map((data, index) => {
+                    const grossRent = data.rent * 100/(100-data.vacancyRate);
+                    return (
+                      <td key={index} style={{ textAlign: 'right' }}>
+                        {formatCurrency(grossRent)}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Leerstand</td>
+                  {pageData.map((data, index) => {
+                    const grossRent = data.rent * 100/(100-data.vacancyRate);
+                    const vacancy = -(grossRent - data.rent);
+                    return (
+                      <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                        {formatCurrency(vacancy)}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Effektive Mieteinnahmen</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: data.rent > 0 ? 'green' : 'inherit' }}>
+                      {formatCurrency(data.rent)}
+                    </td>
+                  ))}
+                </tr>
+              </>
+            )}
             
-            {/* Bewirtschaftungskosten */}
-            <tr>
-              <td><b>Bewirtschaftungskosten</b></td>
+            {/* 2. Bewirtschaftungskosten */}
+            <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleCategory('costs')}>
+              <td>
+                <Group spacing="xs">
+                  <span>{isCategoryExpanded('costs') ? '▼' : '▶'}</span>
+                  <b>Bewirtschaftungskosten</b>
+                </Group>
+              </td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.ongoingCosts < 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.ongoingCosts < 0 ? 'green' : 'red' }}>
                   {formatCurrency(-data.ongoingCosts)}
                 </td>
               ))}
             </tr>
+            {isCategoryExpanded('costs') && (
+              <>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Grundsteuer</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.propertyTax)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Hausverwaltung</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.managementFee)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Instandhaltungsrücklage</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.maintenanceReserve)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Versicherungen</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.insurance)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Gesamte Bewirtschaftungskosten</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.ongoingCosts)}
+                    </td>
+                  ))}
+                </tr>
+              </>
+            )}
             
-            {/* Cashflow vor Finanzierung */}
-            <tr>
+            {/* 3. Cashflow vor Finanzierung */}
+            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
               <td><b>Cashflow vor Finanzierung</b></td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.cashflowBeforeFinancing >= 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.cashflowBeforeFinancing >= 0 ? 'green' : 'red' }}>
                   {formatCurrency(data.cashflowBeforeFinancing)}
                 </td>
               ))}
             </tr>
             
-            {/* Finanzierung */}
-            <tr>
-              <td><b>Finanzierung</b></td>
+            {/* 4. Finanzierung */}
+            <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleCategory('financing')}>
+              <td>
+                <Group spacing="xs">
+                  <span>{isCategoryExpanded('financing') ? '▼' : '▶'}</span>
+                  <b>Finanzierung</b>
+                </Group>
+              </td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.payment < 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.payment < 0 ? 'green' : 'red' }}>
                   {formatCurrency(-data.payment)}
                 </td>
               ))}
             </tr>
+            {isCategoryExpanded('financing') && (
+              <>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Zinsanteil</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.interest)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Tilgungsanteil</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.principal)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Annuität (Rate)</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.payment)}
+                    </td>
+                  ))}
+                </tr>
+              </>
+            )}
             
-            {/* Cashflow vor Steuern */}
-            <tr>
+            {/* 5. Cashflow vor Steuern */}
+            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
               <td><b>Cashflow vor Steuern</b></td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.cashflowBeforeTax >= 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.cashflowBeforeTax >= 0 ? 'green' : 'red' }}>
                   {formatCurrency(data.cashflowBeforeTax)}
                 </td>
               ))}
             </tr>
             
-            {/* Steuerersparnis */}
-            <tr>
+            {/* 6. Abschreibungen & Steuern */}
+            <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleCategory('tax')}>
+              <td>
+                <Group spacing="xs">
+                  <span>{isCategoryExpanded('tax') ? '▼' : '▶'}</span>
+                  <b>Abschreibungen & Steuern</b>
+                </Group>
+              </td>
+              {pageData.map((data, index) => (
+                <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                  {formatCurrency(-data.totalDepreciation)}
+                </td>
+              ))}
+            </tr>
+            {isCategoryExpanded('tax') && (
+              <>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>AfA Gebäude</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.buildingDepreciation)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>AfA Möbel</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.furnitureDepreciation)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Erhaltungsaufwand</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                      {formatCurrency(data.maintenanceDeduction)}
+                    </td>
+                  ))}
+                </tr>
+                {showAllColumns && (
+                  <>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>
+                        {pageData[0].firstYearDeductibleCosts > 0 ? 'Maklerkosten als Beratungsleistung' : ''}
+                      </td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                          {data.firstYearDeductibleCosts > 0 ? formatCurrency(data.firstYearDeductibleCosts) : '-'}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Ergebnis vor Steuern</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: data.taxableIncome >= 0 ? 'green' : 'red' }}>
+                          {formatCurrency(data.taxableIncome)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Zu versteuerndes Einkommen (vorher)</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right' }}>
+                          {formatCurrency(data.previousIncome)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Neues zu versteuerndes Gesamteinkommen</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right' }}>
+                          {formatCurrency(data.newTotalIncome)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Einkommensteuer (vorher)</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                          {formatCurrency(data.previousTax)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Einkommensteuer (nachher)</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                          {formatCurrency(data.newTax)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Kirchensteuer (vorher)</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                          {formatCurrency(data.previousChurchTax)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ paddingLeft: 30 }}>Kirchensteuer (nachher)</td>
+                      {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                          {formatCurrency(data.newChurchTax)}
+                        </td>
+                      ))}
+                    </tr>
+                  </>
+                )}
+              </>
+            )}
+            
+            {/* 7. Steuerersparnis */}
+            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
               <td><b>Steuerersparnis</b></td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.taxSavings >= 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.taxSavings >= 0 ? 'green' : 'red' }}>
                   {formatCurrency(data.taxSavings)}
                 </td>
               ))}
             </tr>
             
-            {/* Cashflow nach Steuern */}
-            <tr>
+            {/* 8. Cashflow nach Steuern */}
+            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
               <td><b>Cashflow nach Steuern</b></td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.cashflow >= 0 ? 'green' : 'red', fontWeight: 'bold' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.cashflow >= 0 ? 'green' : 'red', fontWeight: 'bold' }}>
                   {formatCurrency(data.cashflow)}
                 </td>
               ))}
             </tr>
             
-            {/* Vermögenswerte */}
-            <tr>
-              <td><b>Vermögenswerte</b></td>
+            {/* 9. Vermögenswerte */}
+            <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleCategory('assets')}>
+              <td>
+                <Group spacing="xs">
+                  <span>{isCategoryExpanded('assets') ? '▼' : '▶'}</span>
+                  <b>Vermögenswerte</b>
+                </Group>
+              </td>
               {pageData.map((data, index) => (
-                <td key={index} style={{ color: data.equity >= 0 ? 'green' : 'red' }}>
+                <td key={index} style={{ textAlign: 'right', color: data.equity >= 0 ? 'green' : 'red' }}>
                   {formatCurrency(data.equity)}
                 </td>
               ))}
             </tr>
-            
-            {showAllColumns && (
+            {isCategoryExpanded('assets') && (
               <>
-                {/* Immobilienwert */}
                 <tr>
-                  <td>Immobilienwert</td>
+                  <td style={{ paddingLeft: 30 }}>Immobilienwert</td>
                   {pageData.map((data, index) => (
-                    <td key={index}>{formatCurrency(data.propertyValue)}</td>
+                    <td key={index} style={{ textAlign: 'right' }}>
+                      {formatCurrency(data.propertyValue)}
+                    </td>
                   ))}
                 </tr>
-                
-                {/* Restschuld */}
                 <tr>
-                  <td>Restschuld</td>
+                  <td style={{ paddingLeft: 30 }}>Restschuld</td>
                   {pageData.map((data, index) => (
-                    <td key={index} style={{ color: data.loanBalance > 0 ? 'red' : 'inherit' }}>
+                    <td key={index} style={{ textAlign: 'right', color: data.loanBalance > 0 ? 'red' : 'inherit' }}>
                       {formatCurrency(data.loanBalance)}
                     </td>
                   ))}
                 </tr>
-                
-                {/* Eigenkapitalrendite */}
                 <tr>
-                  <td>Eigenkapitalrendite (%)</td>
+                  <td style={{ paddingLeft: 30 }}>Eigenkapital</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: data.equity >= 0 ? 'green' : 'red' }}>
+                      {formatCurrency(data.equity)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Eigenkapitalrendite (bezogen auf Anfangsinvestition)</td>
                   {pageData.map((data, index) => {
                     const roi = data.initialEquity > 0 ? (data.cashflow / data.initialEquity) * 100 : 0;
                     return (
-                      <td key={index} style={{ color: roi >= 0 ? 'green' : 'red' }}>
+                      <td key={index} style={{ textAlign: 'right', color: roi >= 0 ? 'green' : 'red' }}>
                         {roi.toFixed(2)} %
                       </td>
                     );

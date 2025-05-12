@@ -5,6 +5,16 @@ import { calculatePurchase } from './purchaseCalculator';
 import { calculateOngoing } from './ongoingCalculator';
 
 /**
+ * Sicherstellt, dass ein Wert eine gültige Zahl ist mit Minimum/Maximum-Grenzen
+ */
+function ensureValidNumber(value: number, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number {
+  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+    return defaultValue;
+  }
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
  * Berechnet den Cashflow und Investitionskennzahlen für eine Immobilie
  * @param property - Die Immobilie, für die der Cashflow berechnet werden soll
  * @param taxInfo - Die Steuerinformationen
@@ -16,246 +26,336 @@ export function calculateCashflow(
   taxInfo: TaxInfo,
   calculationPeriod: number = 10
 ): { results: CalculationResults; yearlyData: YearlyData[] } {
-  // Kauf- und laufende Daten berechnen, falls nicht vorhanden
-  const purchaseData = property.purchaseData || calculatePurchase(property);
-  const ongoingData = property.ongoingData || calculateOngoing(property);
-  
-  // Finanzierungsdetails
-  const financingType = property.defaults.financingType;
-  const downPayment = property.defaults.downPayment;
-  const interestRate = property.defaults.interestRate / 100;
-  const repaymentRate = property.defaults.repaymentRate / 100;
-  
-  // Abschreibungsdetails
-  const depreciationRate = property.defaults.depreciationRate / 100;
-  const buildingValue = property.defaults.buildingValue;
-  const furnitureValue = property.defaults.furnitureValue;
-  const furnitureDepreciationRate = 0.10; // Fest auf 10% gesetzt
-  
-  // Projektionsdetails
-  const appreciationRate = property.defaults.appreciationRate / 100;
-  const rentIncreaseRate = property.defaults.rentIncreaseRate / 100;
-  
-  // Steuerdetails
-  const annualIncome = taxInfo.annualIncome;
-  const taxStatus = taxInfo.taxStatus;
-  const hasChurchTax = taxInfo.hasChurchTax;
-  const churchTaxRate = taxInfo.churchTaxRate;
-  
-  // Finanzierung berechnen
-  let loanAmount = 0;
-  let annuity = 0;
-  
-  if (financingType === 'loan') {
-    loanAmount = purchaseData.totalCost - downPayment;
-    annuity = loanAmount * (interestRate + repaymentRate);
-  }
-  
-  // Abschreibung berechnen
-  const annualBuildingDepreciation = buildingValue * depreciationRate;
-  const annualFurnitureDepreciation = furnitureValue * furnitureDepreciationRate;
-  
-  // Berechnung für das erste Jahr
-  let yearlyInterest = loanAmount * interestRate;
-  let yearlyPrincipal = Math.min(annuity - yearlyInterest, loanAmount);
-  let yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
-  let remainingLoan = loanAmount - yearlyPrincipal;
-  
-  // Cashflow vor Steuern berechnen
-  const cashflowBeforeTax = ongoingData.effectiveRent - ongoingData.totalOngoing - yearlyFinancingCosts;
-  
-  // Maklerkosten als Beratung berücksichtigen, falls aktiviert
-  const brokerConsultingCosts = purchaseData.firstYearDeductibleCosts;
-  
-  // Gesamte Abschreibung berechnen
-  const totalDepreciation = annualBuildingDepreciation + annualFurnitureDepreciation + 
-                           purchaseData.annualMaintenance + brokerConsultingCosts;
-  
-  // Zu versteuerndes Einkommen berechnen
-  const taxableIncome = cashflowBeforeTax + yearlyPrincipal - annualBuildingDepreciation - 
-                       annualFurnitureDepreciation - purchaseData.annualMaintenance - 
-                       brokerConsultingCosts;
-  
-  // Steuern berechnen
-  const previousIncomeTax = calculateGermanIncomeTax(annualIncome, taxStatus);
-  const totalTaxableIncome = Math.max(0, annualIncome + taxableIncome);
-  const newIncomeTax = calculateGermanIncomeTax(totalTaxableIncome, taxStatus);
-  
-  // Kirchensteuer berechnen
-  const previousChurchTax = calculateChurchTax(previousIncomeTax, hasChurchTax, churchTaxRate);
-  const newChurchTax = calculateChurchTax(newIncomeTax, hasChurchTax, churchTaxRate);
-  
-  // Steuerersparnis berechnen
-  const incomeTaxSavings = previousIncomeTax - newIncomeTax;
-  const churchTaxSavings = previousChurchTax - newChurchTax;
-  const taxSavings = incomeTaxSavings + churchTaxSavings;
-  
-  // Cashflow nach Steuern berechnen
-  const cashflowAfterTax = cashflowBeforeTax + taxSavings;
-  const monthlyCashflow = cashflowAfterTax / 12;
-
-  // Jährliche Daten initialisieren
-  const yearlyData: YearlyData[] = [];
-  
-  // Erstes Jahr hinzufügen
-  yearlyData.push({
-    year: 1,
-    rent: ongoingData.effectiveRent,
-    ongoingCosts: ongoingData.totalOngoing,
-    interest: yearlyInterest,
-    principal: yearlyPrincipal,
-    payment: yearlyFinancingCosts,
-    loanBalance: remainingLoan,
-    buildingDepreciation: annualBuildingDepreciation,
-    furnitureDepreciation: annualFurnitureDepreciation,
-    maintenanceDeduction: purchaseData.annualMaintenance,
-    totalDepreciation: totalDepreciation,
-    taxableIncome: taxableIncome,
-    firstYearDeductibleCosts: brokerConsultingCosts,
-    previousIncome: annualIncome,
-    previousTax: previousIncomeTax,
-    previousChurchTax: previousChurchTax,
-    newTotalIncome: totalTaxableIncome,
-    newTax: newIncomeTax,
-    newChurchTax: newChurchTax,
-    taxSavings: taxSavings,
-    cashflow: cashflowAfterTax,
-    cashflowBeforeTax: cashflowBeforeTax,
-    propertyValue: purchaseData.purchasePrice,
-    equity: financingType === 'loan' ? purchaseData.purchasePrice - remainingLoan : purchaseData.purchasePrice,
-    initialEquity: financingType === 'loan' ? downPayment : purchaseData.purchasePrice,
-    // Zusätzliche detaillierte Daten
-    vacancyRate: ongoingData.vacancyRate,
-    propertyTax: ongoingData.propertyTax,
-    managementFee: ongoingData.managementFee,
-    maintenanceReserve: ongoingData.maintenanceCost,
-    insurance: ongoingData.insurance,
-    cashflowBeforeFinancing: ongoingData.effectiveRent - ongoingData.totalOngoing
-  });
-
-  // Zukünftige Jahre berechnen
-  let currentRent = ongoingData.effectiveRent;
-  let currentPropertyValue = purchaseData.purchasePrice;
-  let currentRemainingLoan = remainingLoan;
-  let currentPropertyTax = ongoingData.propertyTax;
-  let currentManagementFee = ongoingData.managementFee;
-  let currentMaintenanceReserve = ongoingData.maintenanceCost;
-  let currentInsurance = ongoingData.insurance;
-  
-  for (let year = 2; year <= calculationPeriod; year++) {
-    // Inflation auf Miete und Kosten anwenden
-    currentRent *= (1 + rentIncreaseRate);
-    currentPropertyTax *= (1 + rentIncreaseRate);
-    currentManagementFee *= (1 + rentIncreaseRate);
-    currentMaintenanceReserve *= (1 + rentIncreaseRate);
-    currentInsurance *= (1 + rentIncreaseRate);
+  try {
+    // Kauf- und laufende Daten berechnen, falls nicht vorhanden
+    const purchaseData = property.purchaseData || calculatePurchase(property);
+    const ongoingData = property.ongoingData || calculateOngoing(property);
     
-    // Gesamte laufende Kosten
-    const currentOngoingCosts = currentPropertyTax + currentManagementFee + 
-                              currentMaintenanceReserve + currentInsurance;
+    // Finanzierungsdetails - Sichere Zahlenkonvertierung
+    const financingType = property.defaults.financingType;
+    const downPayment = ensureValidNumber(property.defaults.downPayment, 0, 1e9, 25000);
+    const interestRate = ensureValidNumber(property.defaults.interestRate, 0, 100, 4) / 100;
+    const repaymentRate = ensureValidNumber(property.defaults.repaymentRate, 0, 100, 1.5) / 100;
     
-    // Cashflow vor Finanzierung
-    const currentCashflowBeforeFinancing = currentRent - currentOngoingCosts;
+    // Abschreibungsdetails - Sichere Zahlenkonvertierung
+    const depreciationRate = ensureValidNumber(property.defaults.depreciationRate, 0, 100, 2) / 100;
+    const buildingValue = ensureValidNumber(property.defaults.buildingValue, 0, 1e9, 250000);
+    const furnitureValue = ensureValidNumber(property.defaults.furnitureValue, 0, 1e9, 15000);
+    const furnitureDepreciationRate = 0.10; // Fest auf 10% gesetzt
     
-    // Finanzierungskosten
-    let yearlyInterest = 0;
-    let yearlyPrincipal = 0;
-    let yearlyFinancingCosts = 0;
+    // Projektionsdetails - Sichere Zahlenkonvertierung
+    const appreciationRate = ensureValidNumber(property.defaults.appreciationRate, 0, 100, 2) / 100;
+    const rentIncreaseRate = ensureValidNumber(property.defaults.rentIncreaseRate, 0, 100, 1.5) / 100;
     
-    if (financingType === 'loan' && currentRemainingLoan > 0) {
-      yearlyInterest = currentRemainingLoan * interestRate;
-      yearlyPrincipal = Math.min(annuity - yearlyInterest, currentRemainingLoan);
-      yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
-      currentRemainingLoan -= yearlyPrincipal;
-      if (currentRemainingLoan < 0) currentRemainingLoan = 0;
+    // Steuerdetails
+    const annualIncome = ensureValidNumber(taxInfo.annualIncome, 0, 1e7, 70000);
+    const taxStatus = taxInfo.taxStatus;
+    const hasChurchTax = taxInfo.hasChurchTax;
+    const churchTaxRate = ensureValidNumber(taxInfo.churchTaxRate, 0, 100, 9);
+    
+    // Finanzierung berechnen
+    let loanAmount = 0;
+    let annuity = 0;
+    
+    if (financingType === 'loan') {
+      loanAmount = ensureValidNumber(purchaseData.totalCost - downPayment, 0, 1e9);
+      // Annuität berechnen, mit Schutz gegen Division durch Null
+      if (interestRate + repaymentRate > 0) {
+        annuity = loanAmount * (interestRate + repaymentRate);
+      } else {
+        annuity = 0;
+      }
     }
     
-    // Cashflow vor Steuern
-    const currentCashflowBeforeTax = currentCashflowBeforeFinancing - yearlyFinancingCosts;
+    // Abschreibung berechnen
+    const annualBuildingDepreciation = buildingValue * depreciationRate;
+    const annualFurnitureDepreciation = furnitureValue * furnitureDepreciationRate;
     
-    // Erhaltungsaufwand nur für den angegebenen Verteilungszeitraum
-    const yearlyMaintenance = year <= purchaseData.maintenanceDistribution ? 
-                             purchaseData.annualMaintenance : 0;
-    const yearlyTotalDepreciation = annualBuildingDepreciation + annualFurnitureDepreciation + 
-                                   yearlyMaintenance;
+    // Berechnung für das erste Jahr
+    let yearlyInterest = loanAmount * interestRate;
+    let yearlyPrincipal = Math.min(annuity - yearlyInterest, loanAmount);
+    let yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
+    let remainingLoan = loanAmount - yearlyPrincipal;
     
-    // Steuerberechnungen
-    const yearlyTaxableIncome = currentCashflowBeforeTax + yearlyPrincipal - 
-                               annualBuildingDepreciation - annualFurnitureDepreciation - 
-                               yearlyMaintenance;
-    const yearlyTotalTaxableIncome = Math.max(0, annualIncome + yearlyTaxableIncome);
-    const yearlyNewIncomeTax = calculateGermanIncomeTax(yearlyTotalTaxableIncome, taxStatus);
+    // Sicherstellen, dass die Werte sinnvoll sind
+    yearlyInterest = ensureValidNumber(yearlyInterest, 0, 1e9);
+    yearlyPrincipal = ensureValidNumber(yearlyPrincipal, 0, 1e9);
+    yearlyFinancingCosts = ensureValidNumber(yearlyFinancingCosts, 0, 1e9);
+    remainingLoan = ensureValidNumber(remainingLoan, 0, 1e9);
     
-    // Kirchensteuer
-    const yearlyPreviousChurchTax = hasChurchTax ? 
-                                  calculateChurchTax(previousIncomeTax, hasChurchTax, churchTaxRate) : 0;
-    const yearlyNewChurchTax = hasChurchTax ? 
-                             calculateChurchTax(yearlyNewIncomeTax, hasChurchTax, churchTaxRate) : 0;
+    // Cashflow vor Steuern berechnen
+    const effectiveRent = ensureValidNumber(ongoingData.effectiveRent, 0, 1e7, 14400);
+    const totalOngoing = ensureValidNumber(ongoingData.totalOngoing, 0, 1e7, 2000);
+    const cashflowBeforeTax = effectiveRent - totalOngoing - yearlyFinancingCosts;
     
-    // Steuerersparnis
-    const yearlyIncomeTaxSavings = previousIncomeTax - yearlyNewIncomeTax;
-    const yearlyChurchTaxSavings = yearlyPreviousChurchTax - yearlyNewChurchTax;
-    const yearlyTaxSavings = yearlyIncomeTaxSavings + yearlyChurchTaxSavings;
+    // Maklerkosten als Beratung berücksichtigen, falls aktiviert
+    const brokerConsultingCosts = ensureValidNumber(purchaseData.firstYearDeductibleCosts, 0, 1e7);
     
-    // Cashflow nach Steuern
-    const yearlyCashflowAfterTax = currentCashflowBeforeTax + yearlyTaxSavings;
+    // Gesamte Abschreibung berechnen
+    const annualMaintenance = ensureValidNumber(purchaseData.annualMaintenance, 0, 1e7, 7000);
+    const totalDepreciation = annualBuildingDepreciation + annualFurnitureDepreciation + 
+                           annualMaintenance + brokerConsultingCosts;
     
-    // Immobilienwert mit Wertsteigerung
-    currentPropertyValue = purchaseData.purchasePrice * Math.pow(1 + appreciationRate, year - 1);
+    // Zu versteuerndes Einkommen berechnen
+    const taxableIncome = cashflowBeforeTax + yearlyPrincipal - annualBuildingDepreciation - 
+                       annualFurnitureDepreciation - annualMaintenance - 
+                       brokerConsultingCosts;
     
-    // Eigenkapital
-    const yearlyEquity = currentPropertyValue - currentRemainingLoan;
+    // Steuern berechnen
+    const previousIncomeTax = calculateGermanIncomeTax(annualIncome, taxStatus);
+    const totalTaxableIncome = Math.max(0, annualIncome + taxableIncome);
+    const newIncomeTax = calculateGermanIncomeTax(totalTaxableIncome, taxStatus);
     
-    // Jährliche Daten speichern
+    // Kirchensteuer berechnen
+    const previousChurchTax = calculateChurchTax(previousIncomeTax, hasChurchTax, churchTaxRate);
+    const newChurchTax = calculateChurchTax(newIncomeTax, hasChurchTax, churchTaxRate);
+    
+    // Steuerersparnis berechnen
+    const incomeTaxSavings = previousIncomeTax - newIncomeTax;
+    const churchTaxSavings = previousChurchTax - newChurchTax;
+    const taxSavings = incomeTaxSavings + churchTaxSavings;
+    
+    // Cashflow nach Steuern berechnen
+    const cashflowAfterTax = cashflowBeforeTax + taxSavings;
+    const monthlyCashflow = cashflowAfterTax / 12;
+
+    // Jährliche Daten initialisieren
+    const yearlyData: YearlyData[] = [];
+    
+    // Erstes Jahr hinzufügen
+    const purchasePrice = ensureValidNumber(purchaseData.purchasePrice, 1000, 1e9, 316500);
     yearlyData.push({
-      year: year,
-      rent: currentRent,
-      ongoingCosts: currentOngoingCosts,
+      year: 1,
+      rent: effectiveRent,
+      ongoingCosts: totalOngoing,
       interest: yearlyInterest,
       principal: yearlyPrincipal,
       payment: yearlyFinancingCosts,
-      loanBalance: currentRemainingLoan,
+      loanBalance: remainingLoan,
       buildingDepreciation: annualBuildingDepreciation,
       furnitureDepreciation: annualFurnitureDepreciation,
-      maintenanceDeduction: yearlyMaintenance,
-      totalDepreciation: yearlyTotalDepreciation,
-      firstYearDeductibleCosts: 0, // Nach dem ersten Jahr immer 0
-      taxableIncome: yearlyTaxableIncome,
+      maintenanceDeduction: annualMaintenance,
+      totalDepreciation: totalDepreciation,
+      taxableIncome: taxableIncome,
+      firstYearDeductibleCosts: brokerConsultingCosts,
       previousIncome: annualIncome,
       previousTax: previousIncomeTax,
-      previousChurchTax: yearlyPreviousChurchTax,
-      newTotalIncome: yearlyTotalTaxableIncome,
-      newTax: yearlyNewIncomeTax,
-      newChurchTax: yearlyNewChurchTax,
-      taxSavings: yearlyTaxSavings,
-      cashflow: yearlyCashflowAfterTax,
-      cashflowBeforeTax: currentCashflowBeforeTax,
-      propertyValue: currentPropertyValue,
-      equity: yearlyEquity,
-      initialEquity: financingType === 'loan' ? downPayment : purchaseData.purchasePrice,
+      previousChurchTax: previousChurchTax,
+      newTotalIncome: totalTaxableIncome,
+      newTax: newIncomeTax,
+      newChurchTax: newChurchTax,
+      taxSavings: taxSavings,
+      cashflow: cashflowAfterTax,
+      cashflowBeforeTax: cashflowBeforeTax,
+      propertyValue: purchasePrice,
+      equity: financingType === 'loan' ? purchasePrice - remainingLoan : purchasePrice,
+      initialEquity: financingType === 'loan' ? downPayment : purchasePrice,
       // Zusätzliche detaillierte Daten
-      vacancyRate: ongoingData.vacancyRate,
-      propertyTax: currentPropertyTax,
-      managementFee: currentManagementFee,
-      maintenanceReserve: currentMaintenanceReserve,
-      insurance: currentInsurance,
-      cashflowBeforeFinancing: currentCashflowBeforeFinancing
+      vacancyRate: ensureValidNumber(ongoingData.vacancyRate, 0, 100, 3),
+      propertyTax: ensureValidNumber(ongoingData.propertyTax, 0, 1e6, 500),
+      managementFee: ensureValidNumber(ongoingData.managementFee, 0, 1e6, 600),
+      maintenanceReserve: ensureValidNumber(ongoingData.maintenanceCost, 0, 1e6, 600),
+      insurance: ensureValidNumber(ongoingData.insurance, 0, 1e6, 300),
+      cashflowBeforeFinancing: effectiveRent - totalOngoing
     });
+
+    // Zukünftige Jahre berechnen
+    let currentRent = effectiveRent;
+    let currentPropertyValue = purchasePrice;
+    let currentRemainingLoan = remainingLoan;
+    let currentPropertyTax = ongoingData.propertyTax;
+    let currentManagementFee = ongoingData.managementFee;
+    let currentMaintenanceReserve = ongoingData.maintenanceCost;
+    let currentInsurance = ongoingData.insurance;
+    
+    for (let year = 2; year <= calculationPeriod; year++) {
+      // Inflation auf Miete und Kosten anwenden
+      currentRent = ensureValidNumber(currentRent * (1 + rentIncreaseRate), 0, 1e7);
+      currentPropertyTax = ensureValidNumber(currentPropertyTax * (1 + rentIncreaseRate), 0, 1e6);
+      currentManagementFee = ensureValidNumber(currentManagementFee * (1 + rentIncreaseRate), 0, 1e6);
+      currentMaintenanceReserve = ensureValidNumber(currentMaintenanceReserve * (1 + rentIncreaseRate), 0, 1e6);
+      currentInsurance = ensureValidNumber(currentInsurance * (1 + rentIncreaseRate), 0, 1e6);
+      
+      // Gesamte laufende Kosten
+      const currentOngoingCosts = ensureValidNumber(
+        currentPropertyTax + currentManagementFee + currentMaintenanceReserve + currentInsurance, 
+        0, 
+        1e7
+      );
+      
+      // Cashflow vor Finanzierung
+      const currentCashflowBeforeFinancing = ensureValidNumber(currentRent - currentOngoingCosts, -1e7, 1e7);
+      
+      // Finanzierungskosten
+      let yearlyInterest = 0;
+      let yearlyPrincipal = 0;
+      let yearlyFinancingCosts = 0;
+      
+      if (financingType === 'loan' && currentRemainingLoan > 0) {
+        yearlyInterest = ensureValidNumber(currentRemainingLoan * interestRate, 0, 1e7);
+        yearlyPrincipal = ensureValidNumber(Math.min(annuity - yearlyInterest, currentRemainingLoan), 0, 1e7);
+        yearlyFinancingCosts = ensureValidNumber(yearlyInterest + yearlyPrincipal, 0, 1e7);
+        currentRemainingLoan = ensureValidNumber(currentRemainingLoan - yearlyPrincipal, 0, 1e9);
+      }
+      
+      // Cashflow vor Steuern
+      const currentCashflowBeforeTax = ensureValidNumber(
+        currentCashflowBeforeFinancing - yearlyFinancingCosts, 
+        -1e7, 
+        1e7
+      );
+      
+      // Erhaltungsaufwand nur für den angegebenen Verteilungszeitraum
+      const maintenanceDistribution = ensureValidNumber(purchaseData.maintenanceDistribution, 1, 5, 1);
+      const yearlyMaintenance = year <= maintenanceDistribution ? 
+                             ensureValidNumber(annualMaintenance, 0, 1e7) : 0;
+      const yearlyTotalDepreciation = ensureValidNumber(
+        annualBuildingDepreciation + annualFurnitureDepreciation + yearlyMaintenance, 
+        0, 
+        1e7
+      );
+      
+      // Steuerberechnungen
+      const yearlyTaxableIncome = ensureValidNumber(
+        currentCashflowBeforeTax + yearlyPrincipal - annualBuildingDepreciation - 
+        annualFurnitureDepreciation - yearlyMaintenance,
+        -1e7,
+        1e7
+      );
+      const yearlyTotalTaxableIncome = Math.max(0, annualIncome + yearlyTaxableIncome);
+      const yearlyNewIncomeTax = calculateGermanIncomeTax(yearlyTotalTaxableIncome, taxStatus);
+      
+      // Kirchensteuer
+      const yearlyPreviousChurchTax = hasChurchTax ? 
+                                  calculateChurchTax(previousIncomeTax, hasChurchTax, churchTaxRate) : 0;
+      const yearlyNewChurchTax = hasChurchTax ? 
+                             calculateChurchTax(yearlyNewIncomeTax, hasChurchTax, churchTaxRate) : 0;
+      
+      // Steuerersparnis
+      const yearlyIncomeTaxSavings = ensureValidNumber(previousIncomeTax - yearlyNewIncomeTax, -1e7, 1e7);
+      const yearlyChurchTaxSavings = ensureValidNumber(yearlyPreviousChurchTax - yearlyNewChurchTax, -1e7, 1e7);
+      const yearlyTaxSavings = ensureValidNumber(yearlyIncomeTaxSavings + yearlyChurchTaxSavings, -1e7, 1e7);
+      
+      // Cashflow nach Steuern
+      const yearlyCashflowAfterTax = ensureValidNumber(
+        currentCashflowBeforeTax + yearlyTaxSavings, 
+        -1e7, 
+        1e7
+      );
+      
+      // Immobilienwert mit Wertsteigerung
+      currentPropertyValue = ensureValidNumber(
+        purchasePrice * Math.pow(1 + appreciationRate, year - 1), 
+        0, 
+        1e9
+      );
+      
+      // Eigenkapital
+      const yearlyEquity = ensureValidNumber(currentPropertyValue - currentRemainingLoan, -1e9, 1e9);
+      
+      // Jährliche Daten speichern
+      yearlyData.push({
+        year: year,
+        rent: currentRent,
+        ongoingCosts: currentOngoingCosts,
+        interest: yearlyInterest,
+        principal: yearlyPrincipal,
+        payment: yearlyFinancingCosts,
+        loanBalance: currentRemainingLoan,
+        buildingDepreciation: annualBuildingDepreciation,
+        furnitureDepreciation: annualFurnitureDepreciation,
+        maintenanceDeduction: yearlyMaintenance,
+        totalDepreciation: yearlyTotalDepreciation,
+        firstYearDeductibleCosts: 0, // Nach dem ersten Jahr immer 0
+        taxableIncome: yearlyTaxableIncome,
+        previousIncome: annualIncome,
+        previousTax: previousIncomeTax,
+        previousChurchTax: yearlyPreviousChurchTax,
+        newTotalIncome: yearlyTotalTaxableIncome,
+        newTax: yearlyNewIncomeTax,
+        newChurchTax: yearlyNewChurchTax,
+        taxSavings: yearlyTaxSavings,
+        cashflow: yearlyCashflowAfterTax,
+        cashflowBeforeTax: currentCashflowBeforeTax,
+        propertyValue: currentPropertyValue,
+        equity: yearlyEquity,
+        initialEquity: financingType === 'loan' ? downPayment : purchasePrice,
+        // Zusätzliche detaillierte Daten
+        vacancyRate: ongoingData.vacancyRate,
+        propertyTax: currentPropertyTax,
+        managementFee: currentManagementFee,
+        maintenanceReserve: currentMaintenanceReserve,
+        insurance: currentInsurance,
+        cashflowBeforeFinancing: currentCashflowBeforeFinancing
+      });
+    }
+
+    // Berechnungsergebnisse
+    const results: CalculationResults = {
+      totalCost: ensureValidNumber(purchaseData.totalCost, 0, 1e9),
+      downPayment: financingType === 'loan' ? downPayment : ensureValidNumber(purchaseData.totalCost, 0, 1e9),
+      loanAmount: loanAmount,
+      annuity: annuity,
+      monthlyPayment: ensureValidNumber(annuity / 12, 0, 1e7),
+      monthlyCashflow: ensureValidNumber(monthlyCashflow, -1e7, 1e7),
+      finalPropertyValue: ensureValidNumber(yearlyData[calculationPeriod - 1].propertyValue, 0, 1e9),
+      remainingLoan: ensureValidNumber(yearlyData[calculationPeriod - 1].loanBalance, 0, 1e9),
+      finalEquity: ensureValidNumber(yearlyData[calculationPeriod - 1].equity, -1e9, 1e9),
+      initialEquity: financingType === 'loan' ? downPayment : ensureValidNumber(purchaseData.totalCost, 0, 1e9)
+    };
+
+    return { results, yearlyData };
+  } catch (error) {
+    console.error("Fehler bei der Cashflow-Berechnung:", error);
+    
+    // Standardwerte zurückgeben, wenn ein Fehler auftritt
+    const defaultResults: CalculationResults = {
+      totalCost: 0,
+      downPayment: 0,
+      loanAmount: 0,
+      annuity: 0,
+      monthlyPayment: 0,
+      monthlyCashflow: 0,
+      finalPropertyValue: 0,
+      remainingLoan: 0,
+      finalEquity: 0,
+      initialEquity: 0
+    };
+    
+    const defaultYearlyData: YearlyData[] = Array(10).fill(0).map((_, i) => ({
+      year: i + 1,
+      rent: 0,
+      ongoingCosts: 0,
+      interest: 0,
+      principal: 0,
+      payment: 0,
+      loanBalance: 0,
+      buildingDepreciation: 0,
+      furnitureDepreciation: 0,
+      maintenanceDeduction: 0,
+      totalDepreciation: 0,
+      taxableIncome: 0,
+      firstYearDeductibleCosts: 0,
+      previousIncome: 0,
+      previousTax: 0,
+      previousChurchTax: 0,
+      newTotalIncome: 0,
+      newTax: 0,
+      newChurchTax: 0,
+      taxSavings: 0,
+      cashflow: 0,
+      cashflowBeforeTax: 0,
+      propertyValue: 0,
+      equity: 0,
+      initialEquity: 0,
+      vacancyRate: 0,
+      propertyTax: 0,
+      managementFee: 0,
+      maintenanceReserve: 0,
+      insurance: 0,
+      cashflowBeforeFinancing: 0
+    }));
+    
+    return { results: defaultResults, yearlyData: defaultYearlyData };
   }
-
-  // Berechnungsergebnisse
-  const results: CalculationResults = {
-    totalCost: purchaseData.totalCost,
-    downPayment: financingType === 'loan' ? downPayment : purchaseData.totalCost,
-    loanAmount: loanAmount,
-    annuity: annuity,
-    monthlyPayment: annuity / 12,
-    monthlyCashflow: monthlyCashflow,
-    finalPropertyValue: yearlyData[calculationPeriod - 1].propertyValue,
-    remainingLoan: yearlyData[calculationPeriod - 1].loanBalance,
-    finalEquity: yearlyData[calculationPeriod - 1].equity,
-    initialEquity: financingType === 'loan' ? downPayment : purchaseData.totalCost
-  };
-
-  return { results, yearlyData };
 }
