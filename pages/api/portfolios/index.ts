@@ -1,12 +1,8 @@
-// pages/api/portfolios/index.ts
+// pages/api/portfolios/index.ts (we need to update this file if it already exists)
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]';
-import { calculatePurchase } from '../../../lib/calculators/purchaseCalculator';
-import { calculateOngoing } from '../../../lib/calculators/ongoingCalculator';
-import { calculateCashflow } from '../../../lib/calculators/cashflowCalculator';
-import { TaxInfo } from '../../../lib/types'; 
 
 const prisma = new PrismaClient();
 
@@ -33,7 +29,10 @@ export default async function handler(
     try {
       // First verify that the customer belongs to the user
       const customer = await prisma.customer.findFirst({
-        where: { id: customerId, userId }
+        where: { 
+          id: customerId, 
+          userId 
+        }
       });
       
       if (!customer) {
@@ -63,48 +62,22 @@ export default async function handler(
     try {
       // First verify that the customer belongs to the user
       const customer = await prisma.customer.findFirst({
-        where: { id: customerId, userId }
+        where: { 
+          id: customerId, 
+          userId 
+        }
       });
       
       if (!customer) {
         return res.status(404).json({ message: 'Customer not found' });
       }
       
-      const portfolio = await prisma.portfolio.findFirst({
-        where: { 
-            id: portfolioId, // Use the actual field name from the schema
-            customer: {
-            userId
-            }
-        },
-        include: {
-            customer: {
-            include: {
-                taxInfo: true  // Include tax info as well
-            }
-            }
+      const portfolio = await prisma.portfolio.create({
+        data: {
+          name,
+          customerId
         }
-        });
-    
-    if (!portfolio) {
-        return res.status(404).json({ message: 'Portfolio not found' });
-    }
-      const dbTaxInfo = portfolio.customer.taxInfo;
-
-        if (!dbTaxInfo) {
-        return res.status(404).json({ 
-            message: 'Tax info not found for this customer. Please add tax information first.' 
-        });
-        }
-
-        // Convert to your application's TaxInfo type
-        const taxInfo: TaxInfo = {
-        annualIncome: dbTaxInfo.annualIncome,
-        taxStatus: dbTaxInfo.taxStatus as 'single' | 'married',  // This should now be correctly typed
-        hasChurchTax: dbTaxInfo.hasChurchTax,
-        churchTaxRate: dbTaxInfo.churchTaxRate,
-        taxRate: dbTaxInfo.taxRate
-        };
+      });
       
       return res.status(201).json(portfolio);
     } catch (error) {
