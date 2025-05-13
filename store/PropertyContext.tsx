@@ -6,6 +6,7 @@ import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
 import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
 import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
 import { DEFAULT_PROPERTY_VALUES } from '../lib/constants';
+import { calculateChurchTax, calculateGermanIncomeTax } from '@/lib/calculators/taxCalculator';
 
 // Action types
 type Action = 
@@ -180,6 +181,40 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
     return { state, dispatch };
   }, [state]);
   
+  const recalculateCombinedTaxes = (yearlyData: YearlyData[], taxInfo: TaxInfo): YearlyData[] => {
+    // Clone the data to avoid mutating the original
+    const updatedData = JSON.parse(JSON.stringify(yearlyData));
+    
+    // For each year, recalculate the tax effects
+    updatedData.forEach((year: YearlyData) => {
+      const baseIncome = year.previousIncome;
+      const propertyIncome = year.taxableIncome;
+      
+      // Calculate new total income
+      year.newTotalIncome = Math.max(0, baseIncome + propertyIncome);
+      
+      // Calculate taxes
+      const previousTax = year.previousTax;
+      const previousChurchTax = year.previousChurchTax;
+      
+      const newTax = calculateGermanIncomeTax(year.newTotalIncome, taxInfo.taxStatus);
+      const newChurchTax = taxInfo.hasChurchTax 
+        ? calculateChurchTax(newTax, taxInfo.hasChurchTax, taxInfo.churchTaxRate) 
+        : 0;
+      
+      year.newTax = newTax;
+      year.newChurchTax = newChurchTax;
+      
+      // Calculate tax savings
+      year.taxSavings = (previousTax - newTax) + (previousChurchTax - newChurchTax);
+      
+      // Update cashflow
+      year.cashflow = year.cashflowBeforeTax + year.taxSavings;
+    });
+    
+    return updatedData;
+  };
+
   return (
     <PropertyContext.Provider value={contextValue}>
       {children}

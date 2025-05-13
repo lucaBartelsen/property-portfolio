@@ -7,6 +7,7 @@ import { formatCurrency } from '../lib/utils/formatters';
 import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
 import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
 import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
+import { calculateChurchTax, calculateGermanIncomeTax } from '@/lib/calculators/taxCalculator';
 
 interface YearTableProps {
   property?: Property;
@@ -32,39 +33,47 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
       }
       
       // Initialize arrays for combined results
-      const combinedYearlyData: YearlyData[] = Array(calculationPeriod).fill(0).map((_, index) => ({
-        year: index + 1,
-        rent: 0,
-        ongoingCosts: 0,
-        interest: 0,
-        principal: 0,
-        payment: 0,
-        loanBalance: 0,
-        buildingDepreciation: 0,
-        furnitureDepreciation: 0,
-        maintenanceDeduction: 0,
-        totalDepreciation: 0,
-        taxableIncome: 0,
-        firstYearDeductibleCosts: 0,
-        previousIncome: 0,
-        previousTax: 0,
-        previousChurchTax: 0,
-        newTotalIncome: 0,
-        newTax: 0,
-        newChurchTax: 0,
-        taxSavings: 0,
-        cashflow: 0,
-        cashflowBeforeTax: 0,
-        propertyValue: 0,
-        equity: 0,
-        initialEquity: 0,
-        vacancyRate: 0,
-        propertyTax: 0,
-        managementFee: 0,
-        maintenanceReserve: 0,
-        insurance: 0,
-        cashflowBeforeFinancing: 0
-      }));
+      const combinedYearlyData: YearlyData[] = Array(calculationPeriod).fill(0).map((_, index) => {
+        // Berechne die Einkommensteuer für das Grundeinkommen
+        const baseIncome = state.taxInfo.annualIncome;
+        const baseTax = calculateGermanIncomeTax(baseIncome, state.taxInfo.taxStatus);
+        const baseChurchTax = state.taxInfo.hasChurchTax ? 
+          calculateChurchTax(baseTax, state.taxInfo.hasChurchTax, state.taxInfo.churchTaxRate) : 0;
+        
+        return {
+          year: index + 1,
+          rent: 0,
+          ongoingCosts: 0,
+          interest: 0,
+          principal: 0,
+          payment: 0,
+          loanBalance: 0,
+          buildingDepreciation: 0,
+          furnitureDepreciation: 0,
+          maintenanceDeduction: 0,
+          totalDepreciation: 0,
+          taxableIncome: 0,
+          firstYearDeductibleCosts: 0,
+          previousIncome: baseIncome, // Das Grundeinkommen ohne Immobilien
+          previousTax: baseTax, // Die Steuer auf das Grundeinkommen
+          previousChurchTax: baseChurchTax, // Die Kirchensteuer auf das Grundeinkommen
+          newTotalIncome: 0,
+          newTax: 0,
+          newChurchTax: 0,
+          taxSavings: 0,
+          cashflow: 0,
+          cashflowBeforeTax: 0,
+          propertyValue: 0,
+          equity: 0,
+          initialEquity: 0,
+          vacancyRate: 0,
+          propertyTax: 0,
+          managementFee: 0,
+          maintenanceReserve: 0,
+          insurance: 0,
+          cashflowBeforeFinancing: 0
+        };
+      });
       
       // Calculate fresh data for each property and add to combined results
       state.properties.forEach(propertyItem => {
@@ -77,12 +86,26 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
             if (index < calculationPeriod) {
               const combinedYear = combinedYearlyData[index];
               
-              // Sum all numerical values except year and percentages
+              // Sum all numerical values except year, percentages, and income-related fields that shouldn't be duplicated
               Object.keys(yearData).forEach(key => {
                 const typedKey = key as keyof YearlyData;
+                
+                // Skip fields that shouldn't be summed across properties
+                const nonSummableFields = [
+                  'year', 
+                  'vacancyRate',
+                  'previousIncome',  // Already set correctly for all years
+                  'previousTax',     // Already set correctly for all years
+                  'previousChurchTax', // Already set correctly for all years
+                  'newTotalIncome',
+                  'newTax',
+                  'newChurchTax',
+                  'taxSavings'
+                ];
+                
+                // Only sum numerical values that aren't in the exclusion list
                 if (
-                  typedKey !== 'year' && 
-                  typedKey !== 'vacancyRate' && 
+                  !nonSummableFields.includes(typedKey) && 
                   typeof yearData[typedKey] === 'number'
                 ) {
                   // @ts-ignore (TypeScript doesn't understand we're only summing numeric values)
@@ -93,6 +116,33 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
           });
         }
       });
+
+      combinedYearlyData.forEach((yearData, index) => {
+    // Das Grundeinkommen ist bereits in previousIncome gesetzt
+    // Der Immobilienbedingte Einkommensanteil ist in taxableIncome
+    
+    // Berechne das neue Gesamteinkommen mit Immobilieneinkommen
+    const totalIncome = Math.max(0, yearData.previousIncome + yearData.taxableIncome);
+    yearData.newTotalIncome = totalIncome;
+    
+    // Berechne die neue Gesamtsteuer mit dem kombinierten Einkommen
+    const newTax = calculateGermanIncomeTax(totalIncome, state.taxInfo.taxStatus);
+    yearData.newTax = newTax;
+    
+    // Berechne die neue Kirchensteuer
+    const newChurchTax = state.taxInfo.hasChurchTax 
+        ? calculateChurchTax(newTax, state.taxInfo.hasChurchTax, state.taxInfo.churchTaxRate)
+        : 0;
+    yearData.newChurchTax = newChurchTax;
+    
+    // Berechne die Steuerersparnis
+    // Die Steuerersparnis kann auch negativ sein (Steuermehrbelastung)
+    yearData.taxSavings = (yearData.previousTax - newTax) + 
+                        (yearData.previousChurchTax - newChurchTax);
+    
+    // Aktualisiere den Cashflow nach Steuern
+    yearData.cashflow = yearData.cashflowBeforeTax + yearData.taxSavings;
+    });
       
       return combinedYearlyData;
     } 

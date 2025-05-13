@@ -8,6 +8,7 @@ import { formatCurrency } from '../lib/utils/formatters';
 import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
 import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
 import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
+import { calculateChurchTax, calculateGermanIncomeTax } from '@/lib/calculators/taxCalculator';
 
 interface CashflowChartProps {
   property?: Property;
@@ -44,9 +45,14 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
         totalDepreciation: 0,
         taxableIncome: 0,
         firstYearDeductibleCosts: 0,
-        previousIncome: 0,
-        previousTax: 0,
-        previousChurchTax: 0,
+        previousIncome: state.taxInfo.annualIncome, // Set the base income for all years
+        previousTax: calculateGermanIncomeTax(state.taxInfo.annualIncome, state.taxInfo.taxStatus), // Calculate tax for all years
+        previousChurchTax: state.taxInfo.hasChurchTax ? 
+          calculateChurchTax(
+            calculateGermanIncomeTax(state.taxInfo.annualIncome, state.taxInfo.taxStatus),
+            state.taxInfo.hasChurchTax, 
+            state.taxInfo.churchTaxRate
+          ) : 0, // Calculate church tax for all years
         newTotalIncome: 0,
         newTax: 0,
         newChurchTax: 0,
@@ -78,6 +84,9 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
         initialEquity: 0
       };
       
+      // For storing the combined taxable income from all properties
+      let combinedTaxableIncome: number[] = Array(calculationPeriod).fill(0);
+      
       // Calculate fresh data for each property and add to combined results
       state.properties.forEach(propertyItem => {
         // Calculate fresh data for this property
@@ -101,12 +110,24 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
             if (index < calculationPeriod) {
               const combinedYear = combinedYearlyData[index];
               
-              // Sum all numerical values except year and percentages
+              // Skip fields that shouldn't be summed across properties
+              const nonSummableFields = [
+                'year', 
+                'vacancyRate',
+                'previousIncome',  // Already set correctly for all years
+                'previousTax',     // Already set correctly for all years
+                'previousChurchTax', // Already set correctly for all years
+                'newTotalIncome',
+                'newTax',
+                'newChurchTax',
+                'taxSavings'
+              ];
+              
+              // Sum all numerical values except the ones we should skip
               Object.keys(yearData).forEach(key => {
                 const typedKey = key as keyof YearlyData;
                 if (
-                  typedKey !== 'year' && 
-                  typedKey !== 'vacancyRate' && 
+                  !nonSummableFields.includes(typedKey) && 
                   typeof yearData[typedKey] === 'number'
                 ) {
                   // @ts-ignore (TypeScript doesn't understand we're only summing numeric values)
@@ -117,6 +138,35 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
           });
         }
       });
+      
+      // Recalculate tax information for each year
+      combinedYearlyData.forEach((yearData, index) => {
+      // Das Grundeinkommen ist bereits in previousIncome gesetzt
+      // Der Immobilienbedingte Einkommensanteil ist in taxableIncome
+      
+      // Berechne das neue Gesamteinkommen mit Immobilieneinkommen
+      const totalIncome = Math.max(0, yearData.previousIncome + yearData.taxableIncome);
+      yearData.newTotalIncome = totalIncome;
+      
+      // Berechne die neue Gesamtsteuer mit dem kombinierten Einkommen
+      const newTax = calculateGermanIncomeTax(totalIncome, state.taxInfo.taxStatus);
+      yearData.newTax = newTax;
+      
+      // Berechne die neue Kirchensteuer
+      const newChurchTax = state.taxInfo.hasChurchTax 
+        ? calculateChurchTax(newTax, state.taxInfo.hasChurchTax, state.taxInfo.churchTaxRate)
+        : 0;
+      yearData.newChurchTax = newChurchTax;
+      
+      // Berechne die Steuerersparnis
+      // Die Steuerersparnis kann auch negativ sein (Steuermehrbelastung)
+      yearData.taxSavings = (yearData.previousTax - newTax) + 
+                          (yearData.previousChurchTax - newChurchTax);
+      
+      // Aktualisiere den Cashflow nach Steuern
+      yearData.cashflow = yearData.cashflowBeforeTax + yearData.taxSavings;
+    });
+
       
       return { yearlyData: combinedYearlyData, results: combinedResults };
     } 
