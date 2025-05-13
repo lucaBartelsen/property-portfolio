@@ -19,23 +19,32 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
   
   // Calculate data if it doesn't exist yet
   useEffect(() => {
+  // Add logging
+    console.log("YearTable: Component mounted, combined =", combined);
+    console.log("YearTable: Current state =", state);
+    
     // If in combined mode and there are no results yet, trigger calculation
     if (combined && !state.combinedResults) {
-      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+        console.log("YearTable: No combined results, dispatching calculation");
+        dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
     }
     
     // If looking at a specific property and it has no data, trigger calculation
     if (property && (!property.calculationResults || !property.yearlyData)) {
-      // Update the property to trigger recalculation
-      dispatch({ type: 'UPDATE_PROPERTY', property });
+        console.log("YearTable: Property missing calculations, dispatching update");
+        dispatch({ type: 'UPDATE_PROPERTY', property });
     }
-  }, [combined, property, state.combinedResults, dispatch]);
+    }, [combined, property, state.combinedResults, dispatch]);
   
   // Get yearly data based on mode (combined or single property)
   const yearlyData = combined 
     ? state.combinedResults?.yearlyData 
     : property?.yearlyData;
-  
+
+    console.log("YearTable: Rendering with combined =", combined);
+    console.log("YearTable: combinedResults =", state.combinedResults);
+    console.log("YearTable: property yearlyData =", property?.yearlyData);
+    
   // Component title
   const title = combined 
     ? "Gesamtjahrestabelle aller Immobilien" 

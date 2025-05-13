@@ -1,5 +1,5 @@
 // pages/portfolio-overview.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import {
@@ -46,6 +46,7 @@ export default function PortfolioOverview() {
   const [selectedPortfolio, setSelectedPortfolio] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState('');
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [portfolioStats, setPortfolioStats] = useState({
     totalValue: 0,
     totalEquity: 0,
@@ -74,18 +75,35 @@ export default function PortfolioOverview() {
   // Update property store and trigger calculations when properties change
   useEffect(() => {
     if (properties.length > 0) {
-      // Clear current properties in store
-      dispatch({ type: 'RESET_COMBINED_RESULTS' });
+      console.log("PortfolioOverview: Loading properties into store:", properties.length);
       
-      // Add all properties to the store
+      // First reset the store to ensure no old properties remain
+      dispatch({ type: 'RESET_PROPERTIES' });
+      
+      // Add properties one by one to the store
       properties.forEach(property => {
-        dispatch({ type: 'ADD_PROPERTY', property });
+        const augmentedProperty = {
+          ...property,
+          // Ensure all required fields have valid values
+          defaults: property.defaults || {},
+          purchaseData: property.purchaseData || null,
+          ongoingData: property.ongoingData || null,
+          calculationResults: property.calculationResults || null,
+          yearlyData: property.yearlyData || null
+        };
+        
+        console.log(`PortfolioOverview: Adding property to store:`, augmentedProperty.name);
+        dispatch({ type: 'ADD_PROPERTY', property: augmentedProperty });
       });
       
       // Calculate combined results
+      console.log("PortfolioOverview: All properties added, calculating combined results");
       dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+      
+      // Mark data as loaded to trigger re-renders of child components
+      setDataLoaded(true);
     }
-  }, [properties, dispatch]);
+  }, [properties]);
   
   const fetchPortfolios = async () => {
     setLoading(true);
@@ -145,15 +163,28 @@ export default function PortfolioOverview() {
   
   const fetchProperties = async (portfolioId) => {
     setLoading(true);
+    setDataLoaded(false); // Reset data loaded flag
     try {
       const response = await fetch(`/api/properties?portfolioId=${portfolioId}`);
       if (!response.ok) throw new Error('Failed to fetch properties');
       
       const propertiesData = await response.json();
-      setProperties(propertiesData);
+      console.log("PortfolioOverview: Properties fetched:", propertiesData.length);
+      
+      // Ensure the properties are properly structured
+      const validProperties = propertiesData.map(prop => ({
+        ...prop,
+        defaults: prop.defaults || {},
+        purchaseData: prop.purchaseData || null,
+        ongoingData: prop.ongoingData || null,
+        calculationResults: prop.calculationResults || null,
+        yearlyData: prop.yearlyData || null
+      }));
+      
+      setProperties(validProperties);
       
       // Calculate portfolio statistics
-      calculatePortfolioStats(propertiesData);
+      calculatePortfolioStats(validProperties);
     } catch (error) {
       console.error('Error fetching properties:', error);
       setError('Failed to load properties. Please try again later.');
@@ -250,6 +281,21 @@ export default function PortfolioOverview() {
     }))
     .sort((a, b) => b.cashflow - a.cashflow); // Sort by cashflow descending
   
+  // Handle tab change
+  const handleTabChange = (value) => {
+    console.log("PortfolioOverview: Tab changed to", value);
+    console.log("PortfolioOverview: Current state", state);
+    setActiveTab(value);
+  };
+  
+  // Recalculate data
+  const handleRecalculate = () => {
+    console.log("PortfolioOverview: Manual recalculation requested");
+    // Clear the store and reload properties
+    dispatch({ type: 'RESET_PROPERTIES' });
+    fetchProperties(selectedPortfolio);
+  };
+  
   if (status === 'loading' || (loading && portfolios.length === 0)) {
     return (
       <Container size="lg" py="xl" style={{ textAlign: 'center' }}>
@@ -294,6 +340,9 @@ export default function PortfolioOverview() {
                 nothingFound="Kein Portfolio gefunden"
               />
             )}
+            <Button onClick={handleRecalculate} variant="outline">
+              Daten neu berechnen
+            </Button>
           </Group>
         </Group>
       </Paper>
@@ -305,7 +354,7 @@ export default function PortfolioOverview() {
       )}
       
       {selectedPortfolio && (
-        <Tabs value={activeTab} onTabChange={(value) => setActiveTab(value)}>
+        <Tabs value={activeTab} onTabChange={handleTabChange}>
           <Tabs.List mb="md">
             <Tabs.Tab value="overview">Übersicht</Tabs.Tab>
             <Tabs.Tab value="cashflow">Cashflow</Tabs.Tab>
@@ -435,11 +484,13 @@ export default function PortfolioOverview() {
           </Tabs.Panel>
           
           <Tabs.Panel value="cashflow">
-            <CashflowChart combined />
+            {/* We use a key to force re-mount when data is loaded */}
+            <CashflowChart key={`cashflow-${dataLoaded}`} combined />
           </Tabs.Panel>
           
           <Tabs.Panel value="yeartable">
-            <YearTable combined />
+            {/* We use a key to force re-mount when data is loaded */}
+            <YearTable key={`yeartable-${dataLoaded}`} combined />
           </Tabs.Panel>
           
           <Tabs.Panel value="properties">
@@ -493,6 +544,20 @@ export default function PortfolioOverview() {
             )}
           </Tabs.Panel>
         </Tabs>
+      )}
+      
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <Paper mt="xl" p="md" withBorder>
+          <Title order={5}>Debug Info</Title>
+          <Text size="xs">Properties loaded: {properties.length}</Text>
+          <Text size="xs">Properties in store: {state.properties.length}</Text>
+          <Text size="xs">Combined results: {state.combinedResults ? 'Yes' : 'No'}</Text>
+          <Text size="xs">Data loaded flag: {dataLoaded ? 'Yes' : 'No'}</Text>
+          <Button size="xs" mt="xs" onClick={() => console.log("Current state:", state)}>
+            Log Current State
+          </Button>
+        </Paper>
       )}
     </Container>
   );

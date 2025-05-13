@@ -15,6 +15,7 @@ type Action =
   | { type: 'DELETE_PROPERTY'; id: string }
   | { type: 'UPDATE_TAX_INFO'; taxInfo: TaxInfo }
   | { type: 'CALCULATE_COMBINED_RESULTS' }
+  | { type: 'RESET_PROPERTIES' }
   | { type: 'RESET_COMBINED_RESULTS' };
 
 // Anfänglicher Zustand
@@ -137,16 +138,28 @@ function propertyReducer(state: AppState, action: Action): AppState {
         combinedResults: null // Reset combined results to force recalculation
       };
     }
+
+    case 'RESET_PROPERTIES': {
+      return {
+        ...state,
+        properties: [],
+        activePropertyIndex: 0,
+        combinedResults: null
+      };
+    }
+
     case 'CALCULATE_COMBINED_RESULTS': {
       // Berechne kombinierte Ergebnisse
       const { properties, taxInfo } = state;
       const calculationPeriod = 10; // Dies sollte aus einem UI-Wert kommen
       
-      console.log(`Calculating combined results for ${properties.length} properties...`);
+      console.log(`PropertyContext: Calculating combined results for ${properties.length} properties...`);
+      console.log("PropertyContext: Properties to combine:", properties.map(p => p.name));
       
       // Berechne alle Immobilien, wenn nötig
       const updatedProperties = properties.map(property => {
         if (!property.calculationResults || !property.yearlyData) {
+          console.log(`PropertyContext: Property ${property.name} missing calculations, calculating now...`);
           return calculatePropertyData(property, taxInfo);
         }
         return property;
@@ -154,12 +167,21 @@ function propertyReducer(state: AppState, action: Action): AppState {
       
       // Don't proceed if there are no properties
       if (updatedProperties.length === 0) {
-        console.log("No properties to calculate combined results for.");
+        console.log("PropertyContext: No properties to calculate combined results for.");
         return {
           ...state,
           combinedResults: null
         };
       }
+      
+      // Log property data to check if calculations exist
+      updatedProperties.forEach(property => {
+        console.log(`PropertyContext: Property ${property.name} has calculations:`, 
+          !!property.calculationResults, 
+          !!property.yearlyData, 
+          property.yearlyData?.length
+        );
+      });
       
       // Kombinierte Ergebnisse berechnen
       const combinedResults = {

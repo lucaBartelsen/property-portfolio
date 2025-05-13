@@ -17,14 +17,19 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
   
   // Auto-calculate when component mounts
   useEffect(() => {
+  // Add logging
+    console.log("CashflowChart: Component mounted, combined =", combined);
+    console.log("CashflowChart: Current state =", state);
+    
     // If combined mode is active, calculate combined results
     if (combined && !state.combinedResults) {
+      console.log("CashflowChart: No combined results, dispatching calculation");
       dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
     }
     
     // If looking at a specific property and it doesn't have results yet, trigger calculation
     if (property && (!property.calculationResults || !property.yearlyData)) {
-      // We need to dispatch a calculation for this specific property
+      console.log("CashflowChart: Property missing calculations, dispatching update");
       dispatch({ type: 'UPDATE_PROPERTY', property });
     }
   }, [combined, property, state.combinedResults, dispatch]);
@@ -77,6 +82,8 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
   const results = combined 
     ? state.combinedResults?.calculationResults 
     : property?.calculationResults;
+
+  console.log("CashflowChart: yearlyData =", yearlyData);
   
   return (
     <Card p="md" withBorder>
