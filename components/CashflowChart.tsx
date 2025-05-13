@@ -1,10 +1,13 @@
 // src/components/CashflowChart.tsx
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Card, Title, Button, Group, Text, Paper } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Property } from '../lib/types';
+import { Property, YearlyData, TaxInfo } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
+import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
+import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
+import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
 
 interface CashflowChartProps {
   property?: Property;
@@ -15,46 +18,160 @@ interface CashflowChartProps {
 export default function CashflowChart({ property, combined, onBack }: CashflowChartProps) {
   const { state, dispatch } = usePropertyStore();
   
-  // Auto-calculate when component mounts
-  useEffect(() => {
-    
-    // If combined mode is active, calculate combined results
-    if (combined && !state.combinedResults) {
-      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
-    }
-    
-    // If looking at a specific property and it doesn't have results yet, trigger calculation
-    if (property && (!property.calculationResults || !property.yearlyData)) {
-      dispatch({ type: 'UPDATE_PROPERTY', property });
-    }
-  }, [combined, property, state.combinedResults, dispatch]);
-  
-  // Get yearly data based on mode (combined or single property)
-  const yearlyData = combined 
-    ? state.combinedResults?.yearlyData 
-    : property?.yearlyData;
-  
-  // If no data is available, retry calculations
-  if (!yearlyData || yearlyData.length === 0) {
-    // Try to calculate data again if missing
+  // Calculate yearly data on-demand
+  const { yearlyData, results } = useMemo(() => {
+    // For combined view
     if (combined) {
-      dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
-    } else if (property) {
-      dispatch({ type: 'UPDATE_PROPERTY', property });
+      const calculationPeriod = 10; // Standard period
+      
+      // Don't proceed if there are no properties
+      if (state.properties.length === 0) {
+        return { yearlyData: null, results: null };
+      }
+      
+      // Initialize arrays for combined results
+      const combinedYearlyData: YearlyData[] = Array(calculationPeriod).fill(0).map((_, index) => ({
+        year: index + 1,
+        rent: 0,
+        ongoingCosts: 0,
+        interest: 0,
+        principal: 0,
+        payment: 0,
+        loanBalance: 0,
+        buildingDepreciation: 0,
+        furnitureDepreciation: 0,
+        maintenanceDeduction: 0,
+        totalDepreciation: 0,
+        taxableIncome: 0,
+        firstYearDeductibleCosts: 0,
+        previousIncome: 0,
+        previousTax: 0,
+        previousChurchTax: 0,
+        newTotalIncome: 0,
+        newTax: 0,
+        newChurchTax: 0,
+        taxSavings: 0,
+        cashflow: 0,
+        cashflowBeforeTax: 0,
+        propertyValue: 0,
+        equity: 0,
+        initialEquity: 0,
+        vacancyRate: 0,
+        propertyTax: 0,
+        managementFee: 0,
+        maintenanceReserve: 0,
+        insurance: 0,
+        cashflowBeforeFinancing: 0
+      }));
+      
+      // Combined calculation results
+      const combinedResults = {
+        totalCost: 0,
+        downPayment: 0,
+        loanAmount: 0,
+        annuity: 0,
+        monthlyPayment: 0,
+        monthlyCashflow: 0,
+        finalPropertyValue: 0,
+        remainingLoan: 0,
+        finalEquity: 0,
+        initialEquity: 0
+      };
+      
+      // Calculate fresh data for each property and add to combined results
+      state.properties.forEach(propertyItem => {
+        // Calculate fresh data for this property
+        const propertyData = calculatePropertyData(propertyItem, state.taxInfo);
+        
+        if (propertyData.yearlyData && propertyData.results) {
+          // Add property results to combined results
+          combinedResults.totalCost += propertyData.results.totalCost;
+          combinedResults.downPayment += propertyData.results.downPayment;
+          combinedResults.loanAmount += propertyData.results.loanAmount;
+          combinedResults.annuity += propertyData.results.annuity;
+          combinedResults.monthlyPayment += propertyData.results.monthlyPayment;
+          combinedResults.monthlyCashflow += propertyData.results.monthlyCashflow;
+          combinedResults.finalPropertyValue += propertyData.results.finalPropertyValue;
+          combinedResults.remainingLoan += propertyData.results.remainingLoan;
+          combinedResults.finalEquity += propertyData.results.finalEquity;
+          combinedResults.initialEquity += propertyData.results.initialEquity;
+          
+          // Add this property's yearly data to the combined data
+          propertyData.yearlyData.forEach((yearData, index) => {
+            if (index < calculationPeriod) {
+              const combinedYear = combinedYearlyData[index];
+              
+              // Sum all numerical values except year and percentages
+              Object.keys(yearData).forEach(key => {
+                const typedKey = key as keyof YearlyData;
+                if (
+                  typedKey !== 'year' && 
+                  typedKey !== 'vacancyRate' && 
+                  typeof yearData[typedKey] === 'number'
+                ) {
+                  // @ts-ignore (TypeScript doesn't understand we're only summing numeric values)
+                  combinedYear[typedKey] += yearData[typedKey];
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      return { yearlyData: combinedYearlyData, results: combinedResults };
+    } 
+    // For single property view
+    else if (property) {
+      return calculatePropertyData(property, state.taxInfo);
     }
     
-    // Show loading message
+    return { yearlyData: null, results: null };
+  }, [combined, property, state.properties, state.taxInfo]);
+  
+  // Helper function to calculate data for a single property
+  function calculatePropertyData(propertyItem: Property, taxInfo: TaxInfo): { yearlyData: YearlyData[] | null, results: any | null } {
+    try {
+      // Calculate purchase and ongoing data first
+      const purchaseData = calculatePurchase(propertyItem);
+      const ongoingData = calculateOngoing(propertyItem);
+      
+      // Then calculate cashflow with these fresh values
+      const { results, yearlyData } = calculateCashflow(
+        { ...propertyItem, purchaseData, ongoingData },
+        taxInfo,
+        10 // Standard calculation period
+      );
+      
+      return { yearlyData, results };
+    } catch (error) {
+      console.error("Error calculating property data:", error);
+      return { yearlyData: null, results: null };
+    }
+  }
+  
+  // Component title
+  const title = combined 
+    ? "Gesamtcashflow aller Immobilien" 
+    : `Cashflow: ${property?.name}`;
+  
+  // If no data is available, show a message
+  if (!yearlyData || yearlyData.length === 0 || !results) {
     return (
       <Paper p="xl" withBorder>
         <Group position="apart" mb="md">
-          <Title order={2}>{combined ? "Gesamtcashflow aller Immobilien" : `Cashflow: ${property?.name}`}</Title>
+          <Title order={2}>{title}</Title>
           {onBack && (
             <Button variant="outline" onClick={onBack}>
               Zurück
             </Button>
           )}
         </Group>
-        <Text align="center">Daten werden berechnet...</Text>
+        <Text align="center">Keine Daten vorhanden. Bitte fügen Sie zuerst Immobilien hinzu.</Text>
+        {combined && (
+          <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
+            Berechnungen durchführen
+          </Button>
+        )}
       </Paper>
     );
   }
@@ -68,15 +185,8 @@ export default function CashflowChart({ property, combined, onBack }: CashflowCh
     loanBalance: data.loanBalance
   }));
   
-  // Component title
-  const title = combined 
-    ? "Gesamtcashflow aller Immobilien" 
-    : `Cashflow: ${property?.name}`;
-  
-  // Get calculation results
-  const results = combined 
-    ? state.combinedResults?.calculationResults 
-    : property?.calculationResults;
+  // Get calculation period
+  const calculationPeriod = yearlyData.length;
   
   return (
     <Card p="md" withBorder>

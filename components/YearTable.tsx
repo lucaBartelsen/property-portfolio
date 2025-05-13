@@ -1,9 +1,12 @@
 // src/components/YearTable.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, Title, Button, Group, Text, Paper, Table, Pagination } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
-import { Property, YearlyData } from '../lib/types';
+import { Property, YearlyData, TaxInfo } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
+import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
+import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
+import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
 
 interface YearTableProps {
   property?: Property;
@@ -17,25 +20,111 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const itemsPerPage = 5;
   
-  // Calculate data if it doesn't exist yet
-  useEffect(() => {
-    
-    // If in combined mode and there are no results yet, trigger calculation
-    if (combined && !state.combinedResults) {
-        dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
+  // Calculate yearly data on-demand
+  const yearlyData = useMemo(() => {
+    // For combined view
+    if (combined) {
+      const calculationPeriod = 10; // Standard period
+      
+      // Don't proceed if there are no properties
+      if (state.properties.length === 0) {
+        return null;
+      }
+      
+      // Initialize arrays for combined results
+      const combinedYearlyData: YearlyData[] = Array(calculationPeriod).fill(0).map((_, index) => ({
+        year: index + 1,
+        rent: 0,
+        ongoingCosts: 0,
+        interest: 0,
+        principal: 0,
+        payment: 0,
+        loanBalance: 0,
+        buildingDepreciation: 0,
+        furnitureDepreciation: 0,
+        maintenanceDeduction: 0,
+        totalDepreciation: 0,
+        taxableIncome: 0,
+        firstYearDeductibleCosts: 0,
+        previousIncome: 0,
+        previousTax: 0,
+        previousChurchTax: 0,
+        newTotalIncome: 0,
+        newTax: 0,
+        newChurchTax: 0,
+        taxSavings: 0,
+        cashflow: 0,
+        cashflowBeforeTax: 0,
+        propertyValue: 0,
+        equity: 0,
+        initialEquity: 0,
+        vacancyRate: 0,
+        propertyTax: 0,
+        managementFee: 0,
+        maintenanceReserve: 0,
+        insurance: 0,
+        cashflowBeforeFinancing: 0
+      }));
+      
+      // Calculate fresh data for each property and add to combined results
+      state.properties.forEach(propertyItem => {
+        // Calculate fresh data for this property
+        const propertyYearlyData = calculatePropertyYearlyData(propertyItem, state.taxInfo);
+        
+        if (propertyYearlyData) {
+          // Add this property's yearly data to the combined data
+          propertyYearlyData.forEach((yearData, index) => {
+            if (index < calculationPeriod) {
+              const combinedYear = combinedYearlyData[index];
+              
+              // Sum all numerical values except year and percentages
+              Object.keys(yearData).forEach(key => {
+                const typedKey = key as keyof YearlyData;
+                if (
+                  typedKey !== 'year' && 
+                  typedKey !== 'vacancyRate' && 
+                  typeof yearData[typedKey] === 'number'
+                ) {
+                  // @ts-ignore (TypeScript doesn't understand we're only summing numeric values)
+                  combinedYear[typedKey] += yearData[typedKey];
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      return combinedYearlyData;
+    } 
+    // For single property view
+    else if (property) {
+      return calculatePropertyYearlyData(property, state.taxInfo);
     }
     
-    // If looking at a specific property and it has no data, trigger calculation
-    if (property && (!property.calculationResults || !property.yearlyData)) {
-        dispatch({ type: 'UPDATE_PROPERTY', property });
-    }
-    }, [combined, property, state.combinedResults, dispatch]);
+    return null;
+  }, [combined, property, state.properties, state.taxInfo]);
   
-  // Get yearly data based on mode (combined or single property)
-  const yearlyData = combined 
-    ? state.combinedResults?.yearlyData 
-    : property?.yearlyData;
-    
+  // Helper function to calculate yearly data for a single property
+  function calculatePropertyYearlyData(propertyItem: Property, taxInfo: TaxInfo): YearlyData[] | null {
+    try {
+      // Calculate purchase and ongoing data first
+      const purchaseData = calculatePurchase(propertyItem);
+      const ongoingData = calculateOngoing(propertyItem);
+      
+      // Then calculate cashflow with these fresh values
+      const { yearlyData } = calculateCashflow(
+        { ...propertyItem, purchaseData, ongoingData },
+        taxInfo,
+        10 // Standard calculation period
+      );
+      
+      return yearlyData;
+    } catch (error) {
+      console.error("Error calculating property data:", error);
+      return null;
+    }
+  }
+  
   // Component title
   const title = combined 
     ? "Gesamtjahrestabelle aller Immobilien" 
@@ -53,10 +142,12 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
             </Button>
           )}
         </Group>
-        <Text align="center">Keine Daten vorhanden. Bitte führen Sie zuerst die Berechnungen durch.</Text>
-        <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
-          Berechnungen durchführen
-        </Button>
+        <Text align="center">Keine Daten vorhanden. Bitte fügen Sie zuerst Immobilien hinzu.</Text>
+        {combined && (
+          <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
+            Berechnungen durchführen
+          </Button>
+        )}
       </Paper>
     );
   }
@@ -575,7 +666,6 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
           </div>
           
           <div>
-            <Text size="sm" color="dimmed">Durchschnittliche Rendite p.a.:</Text>
             <Text>
               {(
                 (Math.pow(

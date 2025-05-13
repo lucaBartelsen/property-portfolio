@@ -27,6 +27,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { formatCurrency } from '../../../lib/utils/formatters';
 import { calculateTaxInfo } from '../../../lib/calculators/taxCalculator';
+import { usePropertyStore } from '@/store/PropertyContext';
 
 interface Customer {
   id: string;
@@ -57,6 +58,7 @@ interface Property {
 }
 
 export default function CustomerDetail() {
+  const { state, dispatch } = usePropertyStore();
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession({
@@ -196,73 +198,77 @@ export default function CustomerDetail() {
   };
   
   const handleUpdateCustomer = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      // Calculate tax info
-      const taxInfoData = calculateTaxInfo({
-        annualIncome: data.annualIncome,
-        taxStatus: data.taxStatus as 'single' | 'married',
-        hasChurchTax: data.hasChurchTax,
-        churchTaxRate: data.churchTaxRate,
-        taxRate: data.taxRate
-      });
-      
-      // First update the customer
-      const customerResponse = await fetch(`/api/customers/${id}`, {
+  setIsSubmitting(true);
+  try {
+    // Calculate tax info
+    const taxInfoData = calculateTaxInfo({
+      annualIncome: data.annualIncome,
+      taxStatus: data.taxStatus as 'single' | 'married',
+      hasChurchTax: data.hasChurchTax,
+      churchTaxRate: data.churchTaxRate,
+      taxRate: data.taxRate
+    });
+    
+    // First update the customer
+    const customerResponse = await fetch(`/api/customers/${id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          notes: data.notes
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            notes: data.notes
         }),
-      });
-      
-      if (!customerResponse.ok) {
+        });
+        
+        if (!customerResponse.ok) {
         throw new Error('Failed to update customer');
-      }
-      
-      // Then update tax info
-      if (customer?.taxInfo?.id) {
+        }
+        
+        // Then update tax info
+        if (customer?.taxInfo?.id) {
         // Update existing tax info
         const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
-          method: 'PUT',
-          headers: {
+            method: 'PUT',
+            headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(taxInfoData),
+            },
+            body: JSON.stringify(taxInfoData),
         });
         
         if (!taxResponse.ok) {
-          throw new Error('Failed to update tax information');
+            throw new Error('Failed to update tax information');
         }
-      } else {
+        } else {
         // Create new tax info
         const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
-          method: 'POST',
-          headers: {
+            method: 'POST',
+            headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(taxInfoData),
+            },
+            body: JSON.stringify(taxInfoData),
         });
         
         if (!taxResponse.ok) {
-          throw new Error('Failed to create tax information');
+            throw new Error('Failed to create tax information');
         }
-      }
-      
-      // Refresh the data
-      await fetchCustomerData();
-      setEditModalOpen(false);
+        }
+        
+        // IMPORTANT: Update the tax info in our local store as well
+        // This ensures components relying on this data will re-render
+        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: taxInfoData });
+        
+        // Refresh the data
+        await fetchCustomerData();
+        setEditModalOpen(false);
     } catch (error: any) {
-      setError(error.message || 'An error occurred while updating the customer');
+        setError(error.message || 'An error occurred while updating the customer');
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
-  };
+    };
   
   if (status === 'loading' || loading) {
     return (

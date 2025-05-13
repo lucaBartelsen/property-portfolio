@@ -1,5 +1,5 @@
 // src/components/TaxSettings.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Paper,
   Title,
@@ -10,13 +10,15 @@ import {
   Group,
   Grid,
   Text,
+  LoadingOverlay,
 } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
 import { TaxInfo } from '../lib/types';
-import { calculateTaxInfo } from '../lib/calculators/taxCalculator';
+import { calculateTaxInfo, calculateGermanIncomeTax } from '../lib/calculators/taxCalculator';
 
 export default function TaxSettings() {
   const { state, dispatch } = usePropertyStore();
+  const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<TaxInfo>({
     annualIncome: state.taxInfo.annualIncome,
     taxStatus: state.taxInfo.taxStatus,
@@ -25,14 +27,63 @@ export default function TaxSettings() {
     taxRate: state.taxInfo.taxRate,
   });
 
+  // Update form when state changes
+  useEffect(() => {
+    setFormValues({
+      annualIncome: state.taxInfo.annualIncome,
+      taxStatus: state.taxInfo.taxStatus,
+      hasChurchTax: state.taxInfo.hasChurchTax,
+      churchTaxRate: state.taxInfo.churchTaxRate,
+      taxRate: state.taxInfo.taxRate,
+    });
+  }, [state.taxInfo]);
+
+  // Calculate tax rate when income, status, or church tax changes
+  useEffect(() => {
+    updateTaxRate();
+  }, [formValues.annualIncome, formValues.taxStatus, formValues.hasChurchTax, formValues.churchTaxRate]);
+
+  // Update tax rate
+  const updateTaxRate = () => {
+    if (formValues.annualIncome) {
+      const income = Number(formValues.annualIncome);
+      const status = formValues.taxStatus as 'single' | 'married';
+      
+      // Use existing tax calculator
+      const incomeTax = calculateGermanIncomeTax(income, status);
+      const taxRate = (incomeTax / income) * 100;
+      
+      setFormValues(prev => ({
+        ...prev,
+        taxRate: parseFloat(taxRate.toFixed(1))
+      }));
+    }
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const updatedTaxInfo = calculateTaxInfo(formValues);
-    dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: updatedTaxInfo });
+    setLoading(true);
+    
+    try {
+      // Recalculate tax info to ensure all values are consistent
+      const updatedTaxInfo = calculateTaxInfo(formValues);
+      
+      // Dispatch tax info update
+      dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: updatedTaxInfo });
+      
+      // Show success briefly
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error updating tax info:', error);
+      setLoading(false);
+    }
   };
 
   return (
-    <Paper p="md" withBorder>
+    <Paper p="md" withBorder position="relative">
+      <LoadingOverlay visible={loading} />
       <Title order={2} mb="md">Persönliche Steuerinformationen</Title>
       
       <form onSubmit={handleSubmit}>
