@@ -173,9 +173,12 @@ export default async function handler(
         });
         
         return res.status(200).json(updatedProperty);
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error updating property:', error);
-        return res.status(500).json({ message: 'Failed to update property', error: error.message });
+        return res.status(500).json({ 
+            message: 'Failed to update property', 
+            error: error?.message || 'Unknown error'
+        });
     }
     }
   

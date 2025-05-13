@@ -167,11 +167,15 @@ export default async function handler(
     });
     
     return res.status(201).json(savedProperty);
-  } catch (error) {
-    console.error('Error creating property:', error);
-    return res.status(500).json({ message: 'Failed to create property', error: error.message });
-  }
+  } catch (error: any) {
+        console.error('Error creating property:', error);
+        return res.status(500).json({ 
+            message: 'Failed to create property', 
+            error: error?.message || 'Unknown error'
+        });
+    }
 }
   
   return res.status(405).json({ message: 'Method not allowed' });
 }
+

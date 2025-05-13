@@ -26,8 +26,9 @@ export default function PropertyCard({
   const purchasePrice = property.purchaseData?.purchasePrice || property.defaults.purchasePrice;
   const currentValue = property.calculationResults?.finalPropertyValue || purchasePrice;
   const roi = property.calculationResults 
-    ? ((property.calculationResults.monthlyCashflow * 12) / property.calculationResults.initialEquity * 100).toFixed(2)
-    : '0.00';
+  ? (((property.calculationResults.monthlyCashflow ?? 0) * 12) / 
+     (property.calculationResults.initialEquity ?? 1) * 100).toFixed(2)
+  : '0.00';
   const cashflow = property.calculationResults?.monthlyCashflow || 0;
 
   return (

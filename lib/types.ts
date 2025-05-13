@@ -10,6 +10,7 @@ export interface Property {
   calculationResults: CalculationResults | null;
   yearlyData: YearlyData[] | null;
   defaults: PropertyDefaults;
+  portfolio?: Portfolio;
 }
 
 // Property-Standardwerte
@@ -146,4 +147,13 @@ export interface AppState {
     calculationResults: CalculationResults;
     yearlyData: YearlyData[];
   } | null;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  customerId: string;
+  customerName?: string; // Making this optional since you add it later
+  createdAt?: string;
+  updatedAt?: string;
 }

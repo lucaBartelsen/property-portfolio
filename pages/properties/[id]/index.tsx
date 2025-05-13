@@ -97,8 +97,8 @@ export default function PropertyDetailPage() {
       
       // Navigate back to the customer page
       const portfolio = property.portfolio;
-      if (portfolio?.customer?.id) {
-        router.push(`/customers/${portfolio.customer.id}`);
+      if (portfolio?.customerId) {
+        router.push(`/customers/${portfolio.customerId}`);
       } else {
         router.push('/dashboard');
       }
@@ -115,8 +115,8 @@ export default function PropertyDetailPage() {
   
   const navigateBack = () => {
     // Navigate back to the customer page if possible
-    if (property?.portfolio?.customer?.id) {
-      router.push(`/customers/${property.portfolio.customer.id}`);
+    if (property?.portfolio?.customerId) {
+      router.push(`/customers/${property.portfolio.customerId}`);
     } else {
       router.push('/dashboard');
     }

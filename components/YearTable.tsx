@@ -639,10 +639,10 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
       {totalPages > 1 && (
         <Group position="center" mt="md">
           <Pagination
-            page={currentPage}
+            value={currentPage}
             onChange={setCurrentPage}
             total={totalPages}
-          />
+            />
         </Group>
       )}
       

@@ -23,7 +23,7 @@ import CashflowChart from '../components/CashflowChart';
 import YearTable from '../components/YearTable';
 import { formatCurrency } from '../lib/utils/formatters';
 import { usePropertyStore } from '../store/PropertyContext';
-import { Property } from '../lib/types';
+import { Property, Portfolio } from '../lib/types';
 
 // Define color palette for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -42,9 +42,9 @@ export default function PortfolioOverview() {
   const { state, dispatch } = usePropertyStore();
   
   const [loading, setLoading] = useState(true);
-  const [portfolios, setPortfolios] = useState([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
-  const [selectedPortfolio, setSelectedPortfolio] = useState('');
+  const [selectedPortfolio, setSelectedPortfolio] = useState<string>('');
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -107,7 +107,7 @@ export default function PortfolioOverview() {
   const fetchPortfolios = async () => {
     setLoading(true);
     try {
-      let allPortfolios = [];
+      let allPortfolios: Portfolio[] = [];
       
       // If customerId and portfolioId are provided, load only that specific portfolio
       if (customerId && portfolioId) {
@@ -138,8 +138,8 @@ export default function PortfolioOverview() {
           if (portfoliosResponse.ok) {
             const customerPortfolios = await portfoliosResponse.json();
             // Add the customer name to each portfolio for better display
-            customerPortfolios.forEach(portfolio => {
-              portfolio.customerName = customer.name;
+            customerPortfolios.forEach((portfolio: Portfolio) => {
+                portfolio.customerName = customer.name;
             });
             allPortfolios = [...allPortfolios, ...customerPortfolios];
           }
@@ -160,7 +160,7 @@ export default function PortfolioOverview() {
     }
   };
   
-  const fetchProperties = async (portfolioId) => {
+  const fetchProperties = async (portfolioId: string) => {
     setLoading(true);
     setDataLoaded(false); // Reset data loaded flag
     try {
@@ -189,14 +189,14 @@ export default function PortfolioOverview() {
       const propertiesData = await response.json();
       
       // Ensure the properties are properly structured
-      const validProperties = propertiesData.map(prop => ({
+      const validProperties = propertiesData.map((prop: Property) => ({
         ...prop,
         defaults: prop.defaults || {},
         purchaseData: prop.purchaseData || null,
         ongoingData: prop.ongoingData || null,
         calculationResults: prop.calculationResults || null,
         yearlyData: prop.yearlyData || null
-      }));
+        }));
       
       setProperties(validProperties);
       
@@ -212,7 +212,7 @@ export default function PortfolioOverview() {
     }
   };
   
-  const calculatePortfolioStats = (propertiesData) => {
+  const calculatePortfolioStats = (propertiesData: Property[]) => {
     if (!propertiesData || propertiesData.length === 0) {
       resetPortfolioStats();
       return;
@@ -294,12 +294,12 @@ export default function PortfolioOverview() {
     .filter(property => property.calculationResults)
     .map(property => ({
       name: property.name,
-      cashflow: property.calculationResults.monthlyCashflow || 0
+      cashflow: property.calculationResults?.monthlyCashflow ?? 0
     }))
     .sort((a, b) => b.cashflow - a.cashflow); // Sort by cashflow descending
   
   // Handle tab change
-  const handleTabChange = (value) => {
+  const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
   
@@ -437,7 +437,9 @@ export default function PortfolioOverview() {
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                               ))}
                             </Pie>
-                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                            <Tooltip 
+                            formatter={(value: number, name: string) => formatCurrency(value)} 
+                            />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -457,7 +459,9 @@ export default function PortfolioOverview() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis />
-                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                            <Tooltip 
+                            formatter={(value: number, name: string) => formatCurrency(value)} 
+                            />
                             <Legend />
                             <Line
                               type="monotone"
