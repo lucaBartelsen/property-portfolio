@@ -164,8 +164,27 @@ export default function PortfolioOverview() {
     setLoading(true);
     setDataLoaded(false); // Reset data loaded flag
     try {
-      const response = await fetch(`/api/properties?portfolioId=${portfolioId}`);
-      if (!response.ok) throw new Error('Failed to fetch properties');
+        // First, find which customer this portfolio belongs to
+        const portfolioInfo = portfolios.find(p => p.id === portfolioId);
+        if (portfolioInfo && portfolioInfo.customerName) {
+        const customerId = portfolioInfo.customerId;
+        
+        // Fetch tax info for this customer
+        const taxResponse = await fetch(`/api/customers/${customerId}/tax-info`);
+        if (taxResponse.ok) {
+            const taxInfo = await taxResponse.json();
+            // Update the tax info in the global store
+            dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
+            annualIncome: taxInfo.annualIncome,
+            taxStatus: taxInfo.taxStatus,
+            hasChurchTax: taxInfo.hasChurchTax,
+            churchTaxRate: taxInfo.churchTaxRate,
+            taxRate: taxInfo.taxRate
+            }});
+        }
+      }// Then fetch properties data
+        const response = await fetch(`/api/properties?portfolioId=${portfolioId}`);
+        if (!response.ok) throw new Error('Failed to fetch properties');
       
       const propertiesData = await response.json();
       

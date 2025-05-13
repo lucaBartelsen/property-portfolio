@@ -24,36 +24,40 @@ export default async function handler(
   const propertyId = req.query.id as string;
   
   // GET - Get a single property
-  if (req.method === 'GET') {
+    if (req.method === 'GET') {
     try {
-      const property = await prisma.property.findFirst({
+        const property = await prisma.property.findFirst({
         where: {
-          id: propertyId,
-          portfolio: {
+            id: propertyId,
+            portfolio: {
             customer: {
-              userId
+                userId
             }
-          }
+            }
         },
         include: {
-          portfolio: {
+            portfolio: {
             include: {
-              customer: true
+                customer: {
+                include: {
+                    taxInfo: true // Include tax info here
+                }
+                }
             }
-          }
+            }
         }
-      });
-      
-      if (!property) {
+        });
+        
+        if (!property) {
         return res.status(404).json({ message: 'Property not found' });
-      }
-      
-      return res.status(200).json(property);
+        }
+        
+        return res.status(200).json(property);
     } catch (error) {
-      console.error('Error fetching property:', error);
-      return res.status(500).json({ message: 'Failed to fetch property' });
+        console.error('Error fetching property:', error);
+        return res.status(500).json({ message: 'Failed to fetch property' });
     }
-  }
+    }
   
   // PUT - Update a property
   if (req.method === 'PUT') {

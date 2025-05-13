@@ -125,11 +125,23 @@ export default function CustomerDetail() {
   const fetchCustomerData = async () => {
     setLoading(true);
     try {
-      // Fetch customer data
-      const customerResponse = await fetch(`/api/customers/${id}`);
-      if (!customerResponse.ok) throw new Error('Failed to fetch customer');
-      const customerData = await customerResponse.json();
-      setCustomer(customerData);
+        // Fetch customer data
+        const customerResponse = await fetch(`/api/customers/${id}`);
+        if (!customerResponse.ok) throw new Error('Failed to fetch customer');
+        const customerData = await customerResponse.json();
+        setCustomer(customerData);
+        
+        // Update tax info in the store if available
+        if (customerData.taxInfo) {
+        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
+            annualIncome: customerData.taxInfo.annualIncome,
+            taxStatus: customerData.taxInfo.taxStatus,
+            hasChurchTax: customerData.taxInfo.hasChurchTax,
+            churchTaxRate: customerData.taxInfo.churchTaxRate,
+            taxRate: customerData.taxInfo.taxRate
+        }});
+        
+        }
       
       // Fetch portfolios for this customer
       const portfoliosResponse = await fetch(`/api/portfolios?customerId=${id}`);

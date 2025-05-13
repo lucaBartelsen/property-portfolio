@@ -16,8 +16,11 @@ import PropertyDetails from '../../../components/PropertyDetails';
 import CashflowChart from '../../../components/CashflowChart';
 import YearTable from '../../../components/YearTable';
 import { Property } from '../../../lib/types';
+import { usePropertyStore } from '@/store/PropertyContext';
 
 export default function PropertyDetailPage() {
+
+  const { state, dispatch } = usePropertyStore();
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession({
@@ -39,20 +42,41 @@ export default function PropertyDetailPage() {
   }, [status, id]);
   
   const fetchPropertyData = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/properties/${id}`);
-      if (!response.ok) throw new Error('Failed to fetch property');
+  setLoading(true);
+  try {
+    // Fetch property data
+    const response = await fetch(`/api/properties/${id}`);
+    if (!response.ok) throw new Error('Failed to fetch property');
+    
+    const data = await response.json();
+    setProperty(data);
+
+    // Now also fetch the tax info for this property's customer
+    // The property should include the portfolio and customer reference
+    if (data.portfolio?.customer?.id) {
+      const customerId = data.portfolio.customer.id;
+      const taxResponse = await fetch(`/api/customers/${customerId}/tax-info`);
       
-      const data = await response.json();
-      setProperty(data);
-    } catch (error: any) {
-      console.error('Error fetching property:', error);
-      setError(error.message || 'An error occurred');
-    } finally {
-      setLoading(false);
+      if (taxResponse.ok) {
+        const taxInfo = await taxResponse.json();
+        // Update the tax info in the global store
+        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
+          annualIncome: taxInfo.annualIncome,
+          taxStatus: taxInfo.taxStatus,
+          hasChurchTax: taxInfo.hasChurchTax,
+          churchTaxRate: taxInfo.churchTaxRate,
+          taxRate: taxInfo.taxRate
+        }});
+        
+      }
     }
-  };
+  } catch (error: any) {
+    console.error('Error fetching property:', error);
+    setError(error.message || 'An error occurred');
+  } finally {
+    setLoading(false);
+  }
+};
   
   const handleDeleteProperty = async () => {
     if (!property) return;
