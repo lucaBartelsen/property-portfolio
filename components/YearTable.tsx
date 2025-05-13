@@ -179,7 +179,7 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
 
   // Expand all categories
   const expandAll = () => {
-    setExpandedCategories(['income', 'costs', 'financing', 'tax', 'assets']);
+    setExpandedCategories(['income', 'costs', 'financing', 'tax', 'assets', 'tax-savings']);
   };
 
   // Collapse all categories
@@ -231,13 +231,18 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => data.buildingDepreciation);
     csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => data.furnitureDepreciation);
     csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => data.maintenanceDeduction);
+    if (yearlyData.some(data => data.firstYearDeductibleCosts > 0)) {
+        csvContent += addCsvRow('  Maklerkosten als Beratungsleistung', (data: YearlyData) => data.firstYearDeductibleCosts);
+    }
     csvContent += addCsvRow('  Ergebnis vor Steuern', (data: YearlyData) => data.taxableIncome);
     csvContent += addCsvRow('  Zu versteuerndes Einkommen (vorher)', (data: YearlyData) => data.previousIncome);
     csvContent += addCsvRow('  Neues zu versteuerndes Gesamteinkommen', (data: YearlyData) => data.newTotalIncome);
     csvContent += addCsvRow('  Einkommensteuer (vorher)', (data: YearlyData) => data.previousTax);
     csvContent += addCsvRow('  Einkommensteuer (nachher)', (data: YearlyData) => data.newTax);
-    csvContent += addCsvRow('  Kirchensteuer (vorher)', (data: YearlyData) => data.previousChurchTax);
-    csvContent += addCsvRow('  Kirchensteuer (nachher)', (data: YearlyData) => data.newChurchTax);
+    if (yearlyData.some(data => data.previousChurchTax > 0)) {
+        csvContent += addCsvRow('  Kirchensteuer (vorher)', (data: YearlyData) => data.previousChurchTax);
+        csvContent += addCsvRow('  Kirchensteuer (nachher)', (data: YearlyData) => data.newChurchTax);
+    }
     
     // 7. Tax savings
     csvContent += addCsvRow('Steuerersparnis', (data: YearlyData) => data.taxSavings);
@@ -559,15 +564,84 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
               </>
             )}
             
-            {/* 7. Steuerersparnis */}
-            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
-              <td><b>Steuerersparnis</b></td>
-              {pageData.map((data, index) => (
+            {/* 7. Steuerersparnis - Machen wir jetzt aufklappbar */}
+            <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8', cursor: 'pointer' }} onClick={() => toggleCategory('tax-savings')}>
+            <td>
+                <Group spacing="xs">
+                <span>{isCategoryExpanded('tax-savings') ? '▼' : '▶'}</span>
+                <b>Steuerersparnis</b>
+                </Group>
+            </td>
+            {pageData.map((data, index) => (
                 <td key={index} style={{ textAlign: 'right', color: data.taxSavings >= 0 ? 'green' : 'red' }}>
-                  {formatCurrency(data.taxSavings)}
+                {formatCurrency(data.taxSavings)}
                 </td>
-              ))}
+            ))}
             </tr>
+            {isCategoryExpanded('tax-savings') && (
+            <>
+                <tr>
+                <td style={{ paddingLeft: 30 }}>Zu versteuerndes Einkommen (ohne Immobilie)</td>
+                {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right' }}>
+                    {formatCurrency(data.previousIncome)}
+                    </td>
+                ))}
+                </tr>
+                <tr>
+                <td style={{ paddingLeft: 30 }}>Zu versteuerndes Einkommen (mit Immobilie)</td>
+                {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right' }}>
+                    {formatCurrency(data.newTotalIncome)}
+                    </td>
+                ))}
+                </tr>
+                <tr>
+                <td style={{ paddingLeft: 30 }}>Einkommensteuer (ohne Immobilie)</td>
+                {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                    {formatCurrency(data.previousTax)}
+                    </td>
+                ))}
+                </tr>
+                <tr>
+                <td style={{ paddingLeft: 30 }}>Einkommensteuer (mit Immobilie)</td>
+                {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                    {formatCurrency(data.newTax)}
+                    </td>
+                ))}
+                </tr>
+                {pageData.some(data => data.previousChurchTax > 0 || data.newChurchTax > 0) && (
+                <>
+                    <tr>
+                    <td style={{ paddingLeft: 30 }}>Kirchensteuer (ohne Immobilie)</td>
+                    {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                        {formatCurrency(data.previousChurchTax)}
+                        </td>
+                    ))}
+                    </tr>
+                    <tr>
+                    <td style={{ paddingLeft: 30 }}>Kirchensteuer (mit Immobilie)</td>
+                    {pageData.map((data, index) => (
+                        <td key={index} style={{ textAlign: 'right', color: 'red' }}>
+                        {formatCurrency(data.newChurchTax)}
+                        </td>
+                    ))}
+                    </tr>
+                </>
+                )}
+                <tr>
+                <td style={{ paddingLeft: 30 }}>Gesamte Steuerersparnis</td>
+                {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: data.taxSavings >= 0 ? 'green' : 'red', fontWeight: 'bold' }}>
+                    {formatCurrency(data.taxSavings)}
+                    </td>
+                ))}
+                </tr>
+            </>
+            )}
             
             {/* 8. Cashflow nach Steuern */}
             <tr style={{ borderTop: '2px solid #ddd', borderBottom: '2px solid #ddd', backgroundColor: '#eaf2f8' }}>
