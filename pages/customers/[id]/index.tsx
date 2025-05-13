@@ -164,11 +164,11 @@ export default function CustomerDetail() {
   
   const handleViewPortfolio = () => {
     if (portfolio) {
-      router.push('/portfolio-overview');
+        router.push(`/portfolio-overview?customerId=${id}&portfolioId=${portfolio.id}`);
     } else {
-      setError('Kein Portfolio gefunden. Bitte erstellen Sie zuerst ein Portfolio.');
+        setError('Kein Portfolio gefunden. Bitte erstellen Sie zuerst ein Portfolio.');
     }
-  };
+    };
   
   const viewPropertyDetails = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);

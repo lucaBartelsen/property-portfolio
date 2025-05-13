@@ -30,6 +30,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 export default function PortfolioOverview() {
   const router = useRouter();
+  const { customerId, portfolioId } = router.query; // Get URL parameters
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -56,12 +57,12 @@ export default function PortfolioOverview() {
     cashflowNegative: 0
   });
   
-  // Fetch all portfolios
+  // Fetch portfolios
   useEffect(() => {
     if (status === 'authenticated') {
       fetchPortfolios();
     }
-  }, [status]);
+  }, [status, customerId, portfolioId]);
   
   // Fetch properties when portfolio is selected
   useEffect(() => {
@@ -89,29 +90,48 @@ export default function PortfolioOverview() {
   const fetchPortfolios = async () => {
     setLoading(true);
     try {
-      // First fetch all customers
-      const customersResponse = await fetch('/api/customers');
-      if (!customersResponse.ok) throw new Error('Failed to fetch customers');
-      
-      const customers = await customersResponse.json();
-      
-      // Then fetch portfolios for each customer
       let allPortfolios = [];
-      for (const customer of customers) {
-        const portfoliosResponse = await fetch(`/api/portfolios?customerId=${customer.id}`);
-        if (portfoliosResponse.ok) {
-          const customerPortfolios = await portfoliosResponse.json();
-          // Add the customer name to each portfolio for better display
-          customerPortfolios.forEach(portfolio => {
-            portfolio.customerName = customer.name;
-          });
-          allPortfolios = [...allPortfolios, ...customerPortfolios];
+      
+      // If customerId and portfolioId are provided, load only that specific portfolio
+      if (customerId && portfolioId) {
+        // Fetch customer info to get the name
+        const customerResponse = await fetch(`/api/customers/${customerId}`);
+        if (!customerResponse.ok) throw new Error('Failed to fetch customer');
+        const customer = await customerResponse.json();
+        
+        // Fetch the specific portfolio
+        const portfolioResponse = await fetch(`/api/portfolios/${portfolioId}`);
+        if (!portfolioResponse.ok) throw new Error('Failed to fetch portfolio');
+        const portfolio = await portfolioResponse.json();
+        
+        // Add customer name to the portfolio object
+        portfolio.customerName = customer.name;
+        allPortfolios = [portfolio];
+        setSelectedPortfolio(portfolio.id);
+      } else {
+        // If no specific parameters, load all portfolios
+        const customersResponse = await fetch('/api/customers');
+        if (!customersResponse.ok) throw new Error('Failed to fetch customers');
+        
+        const customers = await customersResponse.json();
+        
+        // Fetch portfolios for each customer
+        for (const customer of customers) {
+          const portfoliosResponse = await fetch(`/api/portfolios?customerId=${customer.id}`);
+          if (portfoliosResponse.ok) {
+            const customerPortfolios = await portfoliosResponse.json();
+            // Add the customer name to each portfolio for better display
+            customerPortfolios.forEach(portfolio => {
+              portfolio.customerName = customer.name;
+            });
+            allPortfolios = [...allPortfolios, ...customerPortfolios];
+          }
         }
       }
       
       setPortfolios(allPortfolios);
       
-      // Select the first portfolio by default if available
+      // If there are portfolios but none selected yet, select the first one
       if (allPortfolios.length > 0 && !selectedPortfolio) {
         setSelectedPortfolio(allPortfolios[0].id);
       }
@@ -238,23 +258,43 @@ export default function PortfolioOverview() {
     );
   }
   
+  // Determine if the portfolio selector should be visible
+  // Hide it if we came directly from a customer page with specific IDs
+  const showPortfolioSelector = !(customerId && portfolioId) && portfolios.length > 1;
+  
   return (
     <Container size="lg" py="xl">
       <Paper p="md" withBorder mb="xl">
         <Group position="apart">
-          <Title order={2}>Portfolio Übersicht</Title>
-          <Select
-            placeholder="Portfolio auswählen"
-            value={selectedPortfolio}
-            onChange={setSelectedPortfolio}
-            data={portfolios.map(p => ({
-              value: p.id,
-              label: `${p.name} (${p.customerName})`
-            }))}
-            style={{ width: 300 }}
-            searchable
-            nothingFound="Kein Portfolio gefunden"
-          />
+          <Group>
+            <Title order={2}>Portfolio Übersicht</Title>
+            {!showPortfolioSelector && portfolios.length > 0 && (
+              <Text size="lg" ml="md">
+                {portfolios[0].name} ({portfolios[0].customerName})
+              </Text>
+            )}
+          </Group>
+          <Group>
+            {customerId && (
+              <Button variant="outline" onClick={() => router.push(`/customers/${customerId}`)}>
+                Zurück zum Kunden
+              </Button>
+            )}
+            {showPortfolioSelector && (
+              <Select
+                placeholder="Portfolio auswählen"
+                value={selectedPortfolio}
+                onChange={setSelectedPortfolio}
+                data={portfolios.map(p => ({
+                  value: p.id,
+                  label: `${p.name} (${p.customerName})`
+                }))}
+                style={{ width: 300 }}
+                searchable
+                nothingFound="Kein Portfolio gefunden"
+              />
+            )}
+          </Group>
         </Group>
       </Paper>
       

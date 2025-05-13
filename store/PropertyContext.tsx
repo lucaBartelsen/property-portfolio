@@ -1,4 +1,4 @@
-// src/store/PropertyContext.tsx - with fix to calculate immediately on save
+// Fixed store/PropertyContext.tsx
 import { createContext, useContext, useReducer, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { AppState, Property, TaxInfo, YearlyData } from '../lib/types';
@@ -81,6 +81,9 @@ function propertyReducer(state: AppState, action: Action): AppState {
       // Bei neuer Immobilie sofort alle Berechnungen durchführen
       const newPropertyWithCalculations = calculatePropertyData(action.property, state.taxInfo);
       
+      // Log the property data for debugging
+      console.log("Adding property to store:", action.property.name);
+      
       return {
         ...state,
         properties: [...state.properties, newPropertyWithCalculations],
@@ -135,111 +138,124 @@ function propertyReducer(state: AppState, action: Action): AppState {
       };
     }
     case 'CALCULATE_COMBINED_RESULTS': {
-        // Berechne kombinierte Ergebnisse
-        const { properties, taxInfo } = state;
-        const calculationPeriod = 10; // Dies sollte aus einem UI-Wert kommen
-        
-        // Berechne alle Immobilien, wenn nötig
-        const updatedProperties = properties.map(property => {
-            if (!property.calculationResults || !property.yearlyData) {
-              return calculatePropertyData(property, taxInfo);
-            }
-            return property;
-        });
-        
-        // Kombinierte Ergebnisse berechnen
-        const combinedResults = {
-            calculationResults: {
-            totalCost: 0,
-            downPayment: 0,
-            loanAmount: 0,
-            annuity: 0,
-            monthlyPayment: 0,
-            monthlyCashflow: 0,
-            finalPropertyValue: 0,
-            remainingLoan: 0,
-            finalEquity: 0,
-            initialEquity: 0
-            },
-            yearlyData: Array(calculationPeriod).fill(0).map((_, index) => ({
-            year: index + 1,
-            rent: 0,
-            ongoingCosts: 0,
-            interest: 0,
-            principal: 0,
-            payment: 0,
-            loanBalance: 0,
-            buildingDepreciation: 0,
-            furnitureDepreciation: 0,
-            maintenanceDeduction: 0,
-            totalDepreciation: 0,
-            taxableIncome: 0,
-            firstYearDeductibleCosts: 0,
-            previousIncome: 0,
-            previousTax: 0,
-            previousChurchTax: 0,
-            newTotalIncome: 0,
-            newTax: 0,
-            newChurchTax: 0,
-            taxSavings: 0,
-            cashflow: 0,
-            cashflowBeforeTax: 0,
-            propertyValue: 0,
-            equity: 0,
-            initialEquity: 0,
-            vacancyRate: 0,
-            propertyTax: 0,
-            managementFee: 0,
-            maintenanceReserve: 0,
-            insurance: 0,
-            cashflowBeforeFinancing: 0
-            }))
-        };
-        
-        // Summiere die Werte aller Immobilien
-        updatedProperties.forEach(property => {
-            if (property.calculationResults && property.yearlyData) {
-            // Summiere die Berechnungsergebnisse
-            const results = property.calculationResults;
-            combinedResults.calculationResults.totalCost += results.totalCost;
-            combinedResults.calculationResults.downPayment += results.downPayment;
-            combinedResults.calculationResults.loanAmount += results.loanAmount;
-            combinedResults.calculationResults.annuity += results.annuity;
-            combinedResults.calculationResults.monthlyPayment += results.monthlyPayment;
-            combinedResults.calculationResults.monthlyCashflow += results.monthlyCashflow;
-            combinedResults.calculationResults.finalPropertyValue += results.finalPropertyValue;
-            combinedResults.calculationResults.remainingLoan += results.remainingLoan;
-            combinedResults.calculationResults.finalEquity += results.finalEquity;
-            combinedResults.calculationResults.initialEquity += results.initialEquity;
-            
-            // Summiere die jährlichen Daten
-            property.yearlyData.forEach((yearData, index) => {
-                if (index < calculationPeriod) {
-                const combinedYear = combinedResults.yearlyData[index];
-                
-                // Summiere alle numerischen Werte außer Jahr und Prozentsätzen
-                Object.keys(yearData).forEach(key => {
-                    const typedKey = key as keyof YearlyData;
-                    if (
-                    typedKey !== 'year' && 
-                    typedKey !== 'vacancyRate' && 
-                    typeof yearData[typedKey] === 'number'
-                    ) {
-                    // @ts-ignore (TypeScript versteht nicht, dass wir nur numerische Werte summieren)
-                    combinedYear[typedKey] += yearData[typedKey];
-                    }
-                });
-                }
-            });
-            }
-        });
-        
-        return {
-            ...state,
-            properties: updatedProperties,
-            combinedResults
-        };
+      // Berechne kombinierte Ergebnisse
+      const { properties, taxInfo } = state;
+      const calculationPeriod = 10; // Dies sollte aus einem UI-Wert kommen
+      
+      console.log(`Calculating combined results for ${properties.length} properties...`);
+      
+      // Berechne alle Immobilien, wenn nötig
+      const updatedProperties = properties.map(property => {
+        if (!property.calculationResults || !property.yearlyData) {
+          return calculatePropertyData(property, taxInfo);
         }
+        return property;
+      });
+      
+      // Don't proceed if there are no properties
+      if (updatedProperties.length === 0) {
+        console.log("No properties to calculate combined results for.");
+        return {
+          ...state,
+          combinedResults: null
+        };
+      }
+      
+      // Kombinierte Ergebnisse berechnen
+      const combinedResults = {
+        calculationResults: {
+          totalCost: 0,
+          downPayment: 0,
+          loanAmount: 0,
+          annuity: 0,
+          monthlyPayment: 0,
+          monthlyCashflow: 0,
+          finalPropertyValue: 0,
+          remainingLoan: 0,
+          finalEquity: 0,
+          initialEquity: 0
+        },
+        yearlyData: Array(calculationPeriod).fill(0).map((_, index) => ({
+          year: index + 1,
+          rent: 0,
+          ongoingCosts: 0,
+          interest: 0,
+          principal: 0,
+          payment: 0,
+          loanBalance: 0,
+          buildingDepreciation: 0,
+          furnitureDepreciation: 0,
+          maintenanceDeduction: 0,
+          totalDepreciation: 0,
+          taxableIncome: 0,
+          firstYearDeductibleCosts: 0,
+          previousIncome: 0,
+          previousTax: 0,
+          previousChurchTax: 0,
+          newTotalIncome: 0,
+          newTax: 0,
+          newChurchTax: 0,
+          taxSavings: 0,
+          cashflow: 0,
+          cashflowBeforeTax: 0,
+          propertyValue: 0,
+          equity: 0,
+          initialEquity: 0,
+          vacancyRate: 0,
+          propertyTax: 0,
+          managementFee: 0,
+          maintenanceReserve: 0,
+          insurance: 0,
+          cashflowBeforeFinancing: 0
+        }))
+      };
+      
+      // Summiere die Werte aller Immobilien
+      updatedProperties.forEach(property => {
+        if (property.calculationResults && property.yearlyData) {
+          // Summiere die Berechnungsergebnisse
+          const results = property.calculationResults;
+          combinedResults.calculationResults.totalCost += results.totalCost;
+          combinedResults.calculationResults.downPayment += results.downPayment;
+          combinedResults.calculationResults.loanAmount += results.loanAmount;
+          combinedResults.calculationResults.annuity += results.annuity;
+          combinedResults.calculationResults.monthlyPayment += results.monthlyPayment;
+          combinedResults.calculationResults.monthlyCashflow += results.monthlyCashflow;
+          combinedResults.calculationResults.finalPropertyValue += results.finalPropertyValue;
+          combinedResults.calculationResults.remainingLoan += results.remainingLoan;
+          combinedResults.calculationResults.finalEquity += results.finalEquity;
+          combinedResults.calculationResults.initialEquity += results.initialEquity;
+          
+          // Summiere die jährlichen Daten
+          property.yearlyData.forEach((yearData, index) => {
+            if (index < calculationPeriod) {
+              const combinedYear = combinedResults.yearlyData[index];
+              
+              // Summiere alle numerischen Werte außer Jahr und Prozentsätzen
+              Object.keys(yearData).forEach(key => {
+                const typedKey = key as keyof YearlyData;
+                if (
+                  typedKey !== 'year' && 
+                  typedKey !== 'vacancyRate' && 
+                  typeof yearData[typedKey] === 'number'
+                ) {
+                  // @ts-ignore (TypeScript versteht nicht, dass wir nur numerische Werte summieren)
+                  combinedYear[typedKey] += yearData[typedKey];
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      console.log("Combined results calculated successfully.");
+      
+      return {
+        ...state,
+        properties: updatedProperties,
+        combinedResults
+      };
+    }
     case 'RESET_COMBINED_RESULTS':
       return {
         ...state,
