@@ -204,11 +204,6 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
         <Title order={2}>{title}</Title>
-        {onBack && (
-          <Button variant="outline" onClick={onBack}>
-            Zurück
-          </Button>
-        )}
       </Group>
       
       <Group position="apart" mb="sm">

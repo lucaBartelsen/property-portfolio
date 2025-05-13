@@ -37,14 +37,6 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
       <Card p="md" withBorder>
         <Group position="apart" mb="md">
           <Title order={2}>Übersicht: {property.name}</Title>
-          <Group>
-            <Button variant="outline" color="blue" onClick={handleEditProperty}>
-              Bearbeiten
-            </Button>
-            <Button variant="outline" onClick={onBack}>
-              Zurück
-            </Button>
-          </Group>
         </Group>
         <Text align="center" py="xl">Daten werden berechnet...</Text>
         <Button fullWidth onClick={() => dispatch({ type: 'UPDATE_PROPERTY', property })}>
@@ -58,14 +50,6 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
         <Title order={2}>Übersicht: {property.name}</Title>
-        <Group>
-          <Button variant="outline" color="blue" onClick={handleEditProperty}>
-            Bearbeiten
-          </Button>
-          <Button variant="outline" onClick={onBack}>
-            Zurück
-          </Button>
-        </Group>
       </Group>
       
       <Grid gutter="xl">

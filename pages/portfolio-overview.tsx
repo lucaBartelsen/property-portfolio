@@ -321,23 +321,6 @@ export default function PortfolioOverview() {
                 Zurück zum Kunden
               </Button>
             )}
-            {showPortfolioSelector && (
-              <Select
-                placeholder="Portfolio auswählen"
-                value={selectedPortfolio}
-                onChange={setSelectedPortfolio}
-                data={portfolios.map(p => ({
-                  value: p.id,
-                  label: `${p.name} (${p.customerName})`
-                }))}
-                style={{ width: 300 }}
-                searchable
-                nothingFound="Kein Portfolio gefunden"
-              />
-            )}
-            <Button onClick={handleRecalculate} variant="outline">
-              Daten neu berechnen
-            </Button>
           </Group>
         </Group>
       </Paper>
