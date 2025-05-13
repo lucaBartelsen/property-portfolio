@@ -28,33 +28,55 @@ export function calculatePurchase(property: Property): PurchaseData {
   const brokerRate = ensureValidNumber(defaults.brokerRate, 0, 10, 3.0);
   const brokerAsConsulting = defaults.brokerAsConsulting;
   
-  // Kaufkosten berechnen
-  const grunderwerbsteuer = purchasePrice * (grunderwerbsteuerRate / 100);
-  const notaryCosts = purchasePrice * (notaryRate / 100);
-  const brokerFee = purchasePrice * (brokerRate / 100);
-  const totalExtra = grunderwerbsteuer + notaryCosts + brokerFee;
-  const totalCost = purchasePrice + totalExtra;
-  
   // Kaufpreisaufteilung
   const landValue = ensureValidNumber(defaults.landValue, 0, purchasePrice, purchasePrice * 0.15);
   const buildingValue = ensureValidNumber(defaults.buildingValue, 0, purchasePrice, purchasePrice * 0.8);
-  const maintenanceCost = ensureValidNumber(defaults.maintenanceCost, 0, purchasePrice, 35000);
   const furnitureValue = ensureValidNumber(defaults.furnitureValue, 0, purchasePrice, purchasePrice * 0.05);
-  const maintenanceDistribution = ensureValidNumber(defaults.maintenanceDistribution, 1, 5, 1);
+  const maintenanceCost = ensureValidNumber(defaults.maintenanceCost, 0, purchasePrice, 35000);
+  
+  // Berechne Summe von Gebäude- und Grundstückswert
+  const immobileValue = landValue + buildingValue;
   
   // Prozentsätze berechnen
   const landValuePercentage = landValue > 0 ? (landValue / purchasePrice) * 100 : 15;
   const buildingValuePercentage = buildingValue > 0 ? (buildingValue / purchasePrice) * 100 : 80;
   
+  // WICHTIGE ÄNDERUNG: Grunderwerbsteuer nur auf Gebäude + Grundstück berechnen
+  const grunderwerbsteuerBase = immobileValue;
+  const grunderwerbsteuer = grunderwerbsteuerBase * (grunderwerbsteuerRate / 100);
+  
+  // Notar- und Maklerkosten auf Gesamtkaufpreis
+  const notaryCosts = purchasePrice * (notaryRate / 100);
+  const brokerFee = purchasePrice * (brokerRate / 100);
+  
+  // Gesamte Nebenkosten
+  const totalExtra = grunderwerbsteuer + notaryCosts + brokerFee;
+  const totalCost = purchasePrice + totalExtra;
+  
   // Nebenkosten auf Grundstück und Gebäude aufteilen
   // Wenn Maklerkosten als Beratung zählen, diese von den Anschaffungskosten ausschließen
   const relevantExtra = brokerAsConsulting ? (grunderwerbsteuer + notaryCosts) : totalExtra;
-  const landExtraCosts = landValue > 0 
-    ? relevantExtra * (landValue / purchasePrice) 
-    : relevantExtra * 0.15;
-  const buildingExtraCosts = buildingValue > 0 
-    ? relevantExtra * (buildingValue / purchasePrice) 
-    : relevantExtra * 0.8;
+  
+  // Aufteilung der Grunderwerbsteuer zwischen Grundstück und Gebäude
+  // basierend auf ihrem Wertanteil am Immobilienwert
+  let landExtraCosts = immobileValue > 0 
+    ? (landValue / immobileValue) * grunderwerbsteuer + (landValue / purchasePrice) * notaryCosts 
+    : 0;
+  
+  let buildingExtraCosts = immobileValue > 0 
+    ? (buildingValue / immobileValue) * grunderwerbsteuer + (buildingValue / purchasePrice) * notaryCosts 
+    : 0;
+  
+  // Broker-Kosten werden gemäß der Einstellung verteilt
+  if (!brokerAsConsulting) {
+    // Wenn Maklerkosten nicht als Beratung gelten, werden sie zu den Anschaffungskosten addiert
+    const landBrokerCosts = landValue > 0 ? (landValue / purchasePrice) * brokerFee : 0;
+    const buildingBrokerCosts = buildingValue > 0 ? (buildingValue / purchasePrice) * brokerFee : 0;
+    
+    // Hinzufügen der Maklerkosten zu den jeweiligen Nebenkosten
+    landExtraCosts += landBrokerCosts;
+    buildingExtraCosts += buildingBrokerCosts;
+  }
   
   // Gesamtwerte inkl. Nebenkosten
   const totalLandValue = landValue + landExtraCosts;
@@ -63,7 +85,8 @@ export function calculatePurchase(property: Property): PurchaseData {
   // Im ersten Jahr absetzbare Kosten
   const firstYearDeductibleCosts = brokerAsConsulting ? brokerFee : 0;
   
-  // Jährlicher Erhaltungsaufwand
+  // Erhaltungsaufwand und Verteilung
+  const maintenanceDistribution = ensureValidNumber(defaults.maintenanceDistribution, 1, 5, 1);
   const annualMaintenance = maintenanceCost / maintenanceDistribution;
   
   return {
