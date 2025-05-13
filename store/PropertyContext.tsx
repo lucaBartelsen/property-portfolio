@@ -72,7 +72,6 @@ function calculatePropertyData(property: Property, taxInfo: TaxInfo): Property {
 
 // Reducer-Funktion
 function propertyReducer(state: AppState, action: Action): AppState {
-  console.log("REDUCER CALLED with action:", action.type);
   try {
     switch (action.type) {
     case 'SET_ACTIVE_PROPERTY':
@@ -81,13 +80,9 @@ function propertyReducer(state: AppState, action: Action): AppState {
         activePropertyIndex: action.index
       };
     case 'ADD_PROPERTY': {
-      console.log("BEFORE calculation:", action.property.name);
         
       // Bei neuer Immobilie sofort alle Berechnungen durchführen
       const newPropertyWithCalculations = calculatePropertyData(action.property, state.taxInfo);
-      
-      // Log the property data for debugging
-      console.log("AFTER calculation:", action.property.name);
       
       return {
         ...state,
@@ -157,13 +152,9 @@ function propertyReducer(state: AppState, action: Action): AppState {
       const { properties, taxInfo } = state;
       const calculationPeriod = 10; // Dies sollte aus einem UI-Wert kommen
       
-      console.log(`PropertyContext: Calculating combined results for ${properties.length} properties...`);
-      console.log("PropertyContext: Properties to combine:", properties.map(p => p.name));
-      
       // Berechne alle Immobilien, wenn nötig
       const updatedProperties = properties.map(property => {
         if (!property.calculationResults || !property.yearlyData) {
-          console.log(`PropertyContext: Property ${property.name} missing calculations, calculating now...`);
           return calculatePropertyData(property, taxInfo);
         }
         return property;
@@ -171,21 +162,11 @@ function propertyReducer(state: AppState, action: Action): AppState {
       
       // Don't proceed if there are no properties
       if (updatedProperties.length === 0) {
-        console.log("PropertyContext: No properties to calculate combined results for.");
         return {
           ...state,
           combinedResults: null
         };
       }
-      
-      // Log property data to check if calculations exist
-      updatedProperties.forEach(property => {
-        console.log(`PropertyContext: Property ${property.name} has calculations:`, 
-          !!property.calculationResults, 
-          !!property.yearlyData, 
-          property.yearlyData?.length
-        );
-      });
       
       // Kombinierte Ergebnisse berechnen
       const combinedResults = {
@@ -274,8 +255,6 @@ function propertyReducer(state: AppState, action: Action): AppState {
         }
       });
       
-      console.log("Combined results calculated successfully.");
-      
       return {
         ...state,
         properties: updatedProperties,
@@ -298,14 +277,8 @@ function propertyReducer(state: AppState, action: Action): AppState {
 
 // Provider-Komponente
 export function PropertyProvider({ children }: { children: ReactNode }) {
-  console.log("PropertyProvider rendering");
   
   const [state, dispatch] = useReducer(propertyReducer, initialState);
-  
-  // Log the reducer setup
-  useEffect(() => {
-    console.log("PropertyProvider mounted - reducer ready");
-  }, []);
   
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => {

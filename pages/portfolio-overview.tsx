@@ -29,7 +29,6 @@ import { Property } from '../lib/types';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 export default function PortfolioOverview() {
-  const componentId = useRef(`portfolio-${Math.random().toString(36).substr(2, 9)}`);
 
   const router = useRouter();
   const { customerId, portfolioId } = router.query; // Get URL parameters
@@ -60,8 +59,6 @@ export default function PortfolioOverview() {
     cashflowNegative: 0
   });
   
-    // At the beginning of the component, add
-    console.log(`Component ID: ${componentId.current} rendering`);
 
   // Fetch portfolios
   useEffect(() => {
@@ -78,15 +75,11 @@ export default function PortfolioOverview() {
   }, [selectedPortfolio]);
   
   // Update property store and trigger calculations when properties change
-  console.log("DISPATCH CHECK:", typeof dispatch);
   useEffect(() => {
     if (properties.length > 0) {
-      console.log(`${componentId.current}: Loading properties into store:`, properties.length);
-      console.log("Dispatch function is:", dispatch);
       
       // First reset the store to ensure no old properties remain
       dispatch({ type: 'RESET_PROPERTIES' });
-      console.log("Test dispatch sent");
       
       // Add properties one by one to the store
       properties.forEach(property => {
@@ -100,13 +93,10 @@ export default function PortfolioOverview() {
           yearlyData: property.yearlyData || null
         };
         
-        console.log(`PortfolioOverview: Adding property to store:`, augmentedProperty.name);
-        console.log(`PortfolioOverview: Adding property to store:`, augmentedProperty);
         dispatch({ type: 'ADD_PROPERTY', property: augmentedProperty });
       });
       
       // Calculate combined results
-      console.log("PortfolioOverview: All properties added, calculating combined results");
       dispatch({ type: 'CALCULATE_COMBINED_RESULTS' });
       
       // Mark data as loaded to trigger re-renders of child components
@@ -178,7 +168,6 @@ export default function PortfolioOverview() {
       if (!response.ok) throw new Error('Failed to fetch properties');
       
       const propertiesData = await response.json();
-      console.log("PortfolioOverview: Properties fetched:", propertiesData.length);
       
       // Ensure the properties are properly structured
       const validProperties = propertiesData.map(prop => ({
@@ -292,14 +281,11 @@ export default function PortfolioOverview() {
   
   // Handle tab change
   const handleTabChange = (value) => {
-    console.log("PortfolioOverview: Tab changed to", value);
-    console.log("PortfolioOverview: Current state", state);
     setActiveTab(value);
   };
   
   // Recalculate data
   const handleRecalculate = () => {
-    console.log("PortfolioOverview: Manual recalculation requested");
     // Clear the store and reload properties
     dispatch({ type: 'RESET_PROPERTIES' });
     fetchProperties(selectedPortfolio);
@@ -553,20 +539,6 @@ export default function PortfolioOverview() {
             )}
           </Tabs.Panel>
         </Tabs>
-      )}
-      
-      {/* Debug info */}
-      {process.env.NODE_ENV === 'development' && (
-        <Paper mt="xl" p="md" withBorder>
-          <Title order={5}>Debug Info</Title>
-          <Text size="xs">Properties loaded: {properties.length}</Text>
-          <Text size="xs">Properties in store: {state.properties.length}</Text>
-          <Text size="xs">Combined results: {state.combinedResults ? 'Yes' : 'No'}</Text>
-          <Text size="xs">Data loaded flag: {dataLoaded ? 'Yes' : 'No'}</Text>
-          <Button size="xs" mt="xs" onClick={() => console.log("Current state:", state)}>
-            Log Current State
-          </Button>
-        </Paper>
       )}
     </Container>
   );

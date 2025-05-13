@@ -16,8 +16,6 @@ export default function App({
     setColorScheme(value || (colorScheme === 'dark' ? 'light' : 'dark'));
   };
 
-  console.log("App rendering with PropertyProvider");
-
   return (
     <SessionProvider session={session}>
       <ColorSchemeProvider colorScheme={colorScheme} toggleColorScheme={toggleColorScheme}>

@@ -153,12 +153,6 @@ export default async function handler(
       10
     );
     
-    // Log calculations to debug
-    console.log('Property defaults:', JSON.stringify(propertyData.defaults, null, 2));
-    console.log('Purchase data:', JSON.stringify(purchaseData, null, 2));
-    console.log('Ongoing data:', JSON.stringify(ongoingData, null, 2));
-    console.log('Calculation results:', JSON.stringify(calculationResults, null, 2));
-    
     // Save the property with calculated data
     const savedProperty = await prisma.property.create({
       data: {
