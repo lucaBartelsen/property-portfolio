@@ -1,5 +1,5 @@
 // Fixed store/PropertyContext.tsx
-import { createContext, useContext, useReducer, ReactNode } from 'react';
+import { createContext, useContext, useReducer, ReactNode, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { AppState, Property, TaxInfo, YearlyData } from '../lib/types';
 import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
@@ -72,18 +72,22 @@ function calculatePropertyData(property: Property, taxInfo: TaxInfo): Property {
 
 // Reducer-Funktion
 function propertyReducer(state: AppState, action: Action): AppState {
-  switch (action.type) {
+  console.log("REDUCER CALLED with action:", action.type);
+  try {
+    switch (action.type) {
     case 'SET_ACTIVE_PROPERTY':
       return {
         ...state,
         activePropertyIndex: action.index
       };
     case 'ADD_PROPERTY': {
+      console.log("BEFORE calculation:", action.property.name);
+        
       // Bei neuer Immobilie sofort alle Berechnungen durchführen
       const newPropertyWithCalculations = calculatePropertyData(action.property, state.taxInfo);
       
       // Log the property data for debugging
-      console.log("Adding property to store:", action.property.name);
+      console.log("AFTER calculation:", action.property.name);
       
       return {
         ...state,
@@ -286,14 +290,30 @@ function propertyReducer(state: AppState, action: Action): AppState {
     default:
       return state;
   }
+} catch (error) {
+  console.error("ERROR IN REDUCER:", error);
+  return state; // Return unchanged state if there's an error
+}
 }
 
 // Provider-Komponente
 export function PropertyProvider({ children }: { children: ReactNode }) {
+  console.log("PropertyProvider rendering");
+  
   const [state, dispatch] = useReducer(propertyReducer, initialState);
   
+  // Log the reducer setup
+  useEffect(() => {
+    console.log("PropertyProvider mounted - reducer ready");
+  }, []);
+  
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => {
+    return { state, dispatch };
+  }, [state]);
+  
   return (
-    <PropertyContext.Provider value={{ state, dispatch }}>
+    <PropertyContext.Provider value={contextValue}>
       {children}
     </PropertyContext.Provider>
   );
@@ -301,7 +321,13 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
 
 // Custom Hook für einfacheren Zugriff
 export function usePropertyStore() {
-  return useContext(PropertyContext);
+  const context = useContext(PropertyContext);
+  
+  if (context === undefined) {
+    throw new Error("usePropertyStore must be used within a PropertyProvider");
+  }
+  
+  return context;
 }
 
 // Hilfsfunktionen

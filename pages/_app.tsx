@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { AppProps } from 'next/app';
 import { MantineProvider, ColorScheme, ColorSchemeProvider } from '@mantine/core';
 import { SessionProvider } from 'next-auth/react';
+import { PropertyProvider } from '../store/PropertyContext';
 import '../styles/globals.css';
 
 export default function App({ 
@@ -15,6 +16,8 @@ export default function App({
     setColorScheme(value || (colorScheme === 'dark' ? 'light' : 'dark'));
   };
 
+  console.log("App rendering with PropertyProvider");
+
   return (
     <SessionProvider session={session}>
       <ColorSchemeProvider colorScheme={colorScheme} toggleColorScheme={toggleColorScheme}>
@@ -23,7 +26,9 @@ export default function App({
           withNormalizeCSS
           theme={{ colorScheme }}
         >
-          <Component {...pageProps} />
+          <PropertyProvider>
+            <Component {...pageProps} />
+          </PropertyProvider>
         </MantineProvider>
       </ColorSchemeProvider>
     </SessionProvider>

@@ -29,6 +29,8 @@ import { Property } from '../lib/types';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 export default function PortfolioOverview() {
+  const componentId = useRef(`portfolio-${Math.random().toString(36).substr(2, 9)}`);
+
   const router = useRouter();
   const { customerId, portfolioId } = router.query; // Get URL parameters
   const { data: session, status } = useSession({
@@ -58,6 +60,9 @@ export default function PortfolioOverview() {
     cashflowNegative: 0
   });
   
+    // At the beginning of the component, add
+    console.log(`Component ID: ${componentId.current} rendering`);
+
   // Fetch portfolios
   useEffect(() => {
     if (status === 'authenticated') {
@@ -73,12 +78,15 @@ export default function PortfolioOverview() {
   }, [selectedPortfolio]);
   
   // Update property store and trigger calculations when properties change
+  console.log("DISPATCH CHECK:", typeof dispatch);
   useEffect(() => {
     if (properties.length > 0) {
-      console.log("PortfolioOverview: Loading properties into store:", properties.length);
+      console.log(`${componentId.current}: Loading properties into store:`, properties.length);
+      console.log("Dispatch function is:", dispatch);
       
       // First reset the store to ensure no old properties remain
       dispatch({ type: 'RESET_PROPERTIES' });
+      console.log("Test dispatch sent");
       
       // Add properties one by one to the store
       properties.forEach(property => {
@@ -93,6 +101,7 @@ export default function PortfolioOverview() {
         };
         
         console.log(`PortfolioOverview: Adding property to store:`, augmentedProperty.name);
+        console.log(`PortfolioOverview: Adding property to store:`, augmentedProperty);
         dispatch({ type: 'ADD_PROPERTY', property: augmentedProperty });
       });
       
