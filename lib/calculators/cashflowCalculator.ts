@@ -119,10 +119,6 @@ function calculateLoanPayments(loanAmount: number, interestRate: number, repayme
   let remainingLoan = loanAmount;
   const yearlyPayments = [];
   
-  // Erstes Jahr berechnen für die initialen Werte
-  const initialInterest = loanAmount * interestRate;
-  const initialPrincipal = Math.min(annuity - initialInterest, loanAmount);
-  
   // Zahlungen für alle Jahre berechnen
   for (let year = 1; year <= years; year++) {
     const yearlyInterest = remainingLoan * interestRate;
@@ -143,8 +139,8 @@ function calculateLoanPayments(loanAmount: number, interestRate: number, repayme
   
   return {
     annuity,
-    initialInterest,
-    initialPrincipal,
+    initialInterest: yearlyPayments[0].interest,
+    initialPrincipal: yearlyPayments[0].principal,
     yearlyPayments
   };
 }
@@ -311,7 +307,7 @@ export function calculateCashflow(
       const currentCashflowBeforeFinancing = ensureValidNumber(currentRent - currentOngoingCosts, -1e7, 1e7);
       
       // Finanzierungskosten
-      const yearIndex = year - 2; // Index 0 ist das zweite Jahr
+      const yearIndex = year - 1;
       let yearlyInterest = 0;
       let yearlyPrincipal = 0;
       let yearlyFinancingCosts = 0;
