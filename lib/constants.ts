@@ -30,20 +30,38 @@ export const BUNDESLAENDER: Bundesland[] = [
 // Standardeinstellungen für neue Immobilien
 export const DEFAULT_PROPERTY_VALUES = {
   purchasePrice: 316500,
-  bundesland: "BW",
+  bundesland: "BY",
   notaryRate: 1.5,
   brokerRate: 3.0,
-  brokerAsConsulting: true,
+  brokerAsConsulting: false,
   depreciationRate: 2.0,
   landValue: 45000,
-  buildingValue: 255000,
+  buildingValue: 220000,
   maintenanceCost: 35000,
   furnitureValue: 16500,
   maintenanceDistribution: 1,
   financingType: 'loan' as const,
+  
+  // Eigenkapital
   downPayment: 25000,
+  
+  // Ursprüngliche Finanzierungsfelder (für Abwärtskompatibilität)
+  loanAmount: 291500, // purchasePrice - downPayment
   interestRate: 4.0,
   repaymentRate: 1.5,
+  
+  // Neue Finanzierungsfelder - Darlehen 1
+  loanAmount1: 316500, // purchasePrice - downPayment
+  interestRate1: 4.0,
+  repaymentRate1: 1.5,
+  
+  // Zweites Darlehen
+  useSecondLoan: false,
+  loanAmount2: 0,
+  interestRate2: 0,
+  repaymentRate2: 0,
+  
+  // Rest unverändert
   monthlyRent: 1200,
   vacancyRate: 3.0,
   propertyTax: 500,
@@ -51,7 +69,7 @@ export const DEFAULT_PROPERTY_VALUES = {
   maintenanceReserve: 600,
   insurance: 300,
   appreciationRate: 2.0,
-  rentIncreaseRate: 1.5
+  rentIncreaseRate: 3
 };
 
 // Kirchensteuersätze nach Bundesland

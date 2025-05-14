@@ -27,9 +27,27 @@ export interface PropertyDefaults {
   furnitureValue: number;
   maintenanceDistribution: number;
   financingType: 'loan' | 'cash';
+  
+  // Eigenkapital
   downPayment: number;
-  interestRate: number;
-  repaymentRate: number;
+  
+  // Ursprüngliche Finanzierungsfelder (für Abwärtskompatibilität)
+  loanAmount?: number;
+  interestRate?: number;
+  repaymentRate?: number;
+  
+  // Neue Finanzierungsfelder - Darlehen 1
+  loanAmount1?: number;
+  interestRate1?: number;
+  repaymentRate1?: number;
+  
+  // Zweites Darlehen
+  useSecondLoan?: boolean;
+  loanAmount2?: number;
+  interestRate2?: number;
+  repaymentRate2?: number;
+  
+  // Rest unverändert
   monthlyRent: number;
   vacancyRate: number;
   propertyTax: number;

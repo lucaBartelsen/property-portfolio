@@ -21,6 +21,137 @@ function ensureValidNumber(value: number | null | undefined, min: number = -1e9,
  * @param calculationPeriod - Der Berechnungszeitraum in Jahren
  * @returns Die berechneten Ergebnisse und jährlichen Daten
  */
+function calculateFinancingCosts(property: Property, calculationPeriod: number = 10) {
+  // Sicherstellen, dass die Werte gültig sind
+  const ensureValidNumber = (value: number | null | undefined, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number => {
+    if (value === null || value === undefined || typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+      return defaultValue;
+    }
+    return Math.max(min, Math.min(max, value));
+  };
+
+  const financingType = property.defaults.financingType || 'loan';
+  
+  // Wenn keine Finanzierung, dann keine Kosten
+  if (financingType === 'cash') {
+    return {
+      totalLoanAmount: 0,
+      totalAnnuity: 0,
+      totalInitialInterest: 0,
+      totalInitialPrincipal: 0,
+      yearlyPayments: Array(calculationPeriod).fill(0).map(() => ({ interest: 0, principal: 0, payment: 0, loanBalance: 0 }))
+    };
+  }
+
+  // Neue Finanzierungsfelder verwenden, wenn vorhanden
+  const useMultipleLoans = !!property.defaults.useSecondLoan;
+  
+  // Darlehen 1 (immer vorhanden)
+  const loanAmount1 = ensureValidNumber(
+    property.defaults.loanAmount1 || property.defaults.loanAmount, 
+    0, 1e9, 0
+  );
+  const interestRate1 = ensureValidNumber(
+    property.defaults.interestRate1 || property.defaults.interestRate, 
+    0, 100, 4
+  ) / 100;
+  const repaymentRate1 = ensureValidNumber(
+    property.defaults.repaymentRate1 || property.defaults.repaymentRate, 
+    0, 100, 1.5
+  ) / 100;
+  
+  // Darlehen 2 (optional)
+  const loanAmount2 = useMultipleLoans 
+    ? ensureValidNumber(property.defaults.loanAmount2, 0, 1e9, 0) 
+    : 0;
+  const interestRate2 = useMultipleLoans 
+    ? ensureValidNumber(property.defaults.interestRate2, 0, 100, 4) / 100 
+    : 0;
+  const repaymentRate2 = useMultipleLoans 
+    ? ensureValidNumber(property.defaults.repaymentRate2, 0, 100, 1.5) / 100 
+    : 0;
+  
+  // Berechnung für Darlehen 1
+  const loan1 = calculateLoanPayments(loanAmount1, interestRate1, repaymentRate1, calculationPeriod);
+  
+  // Berechnung für Darlehen 2, falls vorhanden
+  const loan2 = useMultipleLoans 
+    ? calculateLoanPayments(loanAmount2, interestRate2, repaymentRate2, calculationPeriod) 
+    : {
+        annuity: 0,
+        initialInterest: 0,
+        initialPrincipal: 0,
+        yearlyPayments: Array(calculationPeriod).fill(0).map(() => ({ interest: 0, principal: 0, payment: 0, loanBalance: 0 }))
+      };
+  
+  // Kombinierte Ergebnisse
+  const yearlyPayments = Array(calculationPeriod).fill(0).map((_, index) => {
+    return {
+      interest: loan1.yearlyPayments[index].interest + loan2.yearlyPayments[index].interest,
+      principal: loan1.yearlyPayments[index].principal + loan2.yearlyPayments[index].principal,
+      payment: loan1.yearlyPayments[index].payment + loan2.yearlyPayments[index].payment,
+      loanBalance: loan1.yearlyPayments[index].loanBalance + loan2.yearlyPayments[index].loanBalance
+    };
+  });
+  
+  return {
+    totalLoanAmount: loanAmount1 + loanAmount2,
+    totalAnnuity: loan1.annuity + loan2.annuity,
+    totalInitialInterest: loan1.initialInterest + loan2.initialInterest,
+    totalInitialPrincipal: loan1.initialPrincipal + loan2.initialPrincipal,
+    yearlyPayments
+  };
+}
+
+// Berechnet die jährlichen Zahlungen für ein einzelnes Darlehen
+function calculateLoanPayments(loanAmount: number, interestRate: number, repaymentRate: number, years: number) {
+  if (loanAmount <= 0) {
+    // Kein Darlehen, keine Zahlungen
+    return {
+      annuity: 0,
+      initialInterest: 0,
+      initialPrincipal: 0,
+      yearlyPayments: Array(years).fill(0).map(() => ({ interest: 0, principal: 0, payment: 0, loanBalance: 0 }))
+    };
+  }
+  
+  // Berechnung der jährlichen Annuität
+  const annuity = loanAmount * (interestRate + repaymentRate);
+  
+  // Initialisierung
+  let remainingLoan = loanAmount;
+  const yearlyPayments = [];
+  
+  // Erstes Jahr berechnen für die initialen Werte
+  const initialInterest = loanAmount * interestRate;
+  const initialPrincipal = Math.min(annuity - initialInterest, loanAmount);
+  
+  // Zahlungen für alle Jahre berechnen
+  for (let year = 1; year <= years; year++) {
+    const yearlyInterest = remainingLoan * interestRate;
+    const yearlyPrincipal = Math.min(annuity - yearlyInterest, remainingLoan);
+    const yearlyPayment = yearlyInterest + yearlyPrincipal;
+    
+    // Darlehensrest reduzieren
+    remainingLoan = Math.max(0, remainingLoan - yearlyPrincipal);
+    
+    // Jahreswerte speichern
+    yearlyPayments.push({
+      interest: yearlyInterest,
+      principal: yearlyPrincipal,
+      payment: yearlyPayment,
+      loanBalance: remainingLoan
+    });
+  }
+  
+  return {
+    annuity,
+    initialInterest,
+    initialPrincipal,
+    yearlyPayments
+  };
+}
+
 export function calculateCashflow(
   property: Property,
   taxInfo: TaxInfo,
@@ -61,8 +192,10 @@ export function calculateCashflow(
     const churchTaxRate = ensureValidNumber(taxInfo.churchTaxRate, 0, 100, 9);
     
     // Finanzierung berechnen
-    let loanAmount = 0;
-    let annuity = 0;
+    const financingCosts = calculateFinancingCosts(property, calculationPeriod);
+    let loanAmount = financingCosts.totalLoanAmount;
+    let annuity = financingCosts.totalAnnuity;
+
     
     // Sicherstellen, dass totalCost einen gültigen Wert hat
     const totalCost = ensureValidNumber(purchaseData.totalCost, 0, 1e9, 
@@ -83,11 +216,11 @@ export function calculateCashflow(
     }
     
     // Berechnung für das erste Jahr
-    let yearlyInterest = loanAmount * interestRate;
-    let yearlyPrincipal = Math.min(annuity - yearlyInterest, loanAmount);
+    let yearlyInterest = financingCosts.totalInitialInterest;
+    let yearlyPrincipal = financingCosts.totalInitialPrincipal;
     let yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
     let remainingLoan = loanAmount - yearlyPrincipal;
-    
+        
     // Sicherstellen, dass die Werte sinnvoll sind
     yearlyInterest = ensureValidNumber(yearlyInterest, 0, 1e9);
     yearlyPrincipal = ensureValidNumber(yearlyPrincipal, 0, 1e9);
@@ -198,15 +331,16 @@ export function calculateCashflow(
       const currentCashflowBeforeFinancing = ensureValidNumber(currentRent - currentOngoingCosts, -1e7, 1e7);
       
       // Finanzierungskosten
+      const yearIndex = year - 2; // Index 0 ist das zweite Jahr
       let yearlyInterest = 0;
       let yearlyPrincipal = 0;
       let yearlyFinancingCosts = 0;
       
-      if (financingType === 'loan' && currentRemainingLoan > 0) {
-        yearlyInterest = ensureValidNumber(currentRemainingLoan * interestRate, 0, 1e7);
-        yearlyPrincipal = ensureValidNumber(Math.min(annuity - yearlyInterest, currentRemainingLoan), 0, 1e7);
-        yearlyFinancingCosts = ensureValidNumber(yearlyInterest + yearlyPrincipal, 0, 1e7);
-        currentRemainingLoan = ensureValidNumber(currentRemainingLoan - yearlyPrincipal, 0, 1e9);
+      if (financingType === 'loan') {
+        yearlyInterest = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].interest, 0, 1e7);
+        yearlyPrincipal = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].principal, 0, 1e7);
+        yearlyFinancingCosts = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].payment, 0, 1e7);
+        currentRemainingLoan = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].loanBalance, 0, 1e9);
       }
       
       // Cashflow vor Steuern

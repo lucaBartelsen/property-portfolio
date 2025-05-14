@@ -14,6 +14,11 @@ import {
   Tabs,
   Text,
   Radio,
+  Card,
+  Accordion,
+  Divider,
+  Box,
+  Switch,
 } from '@mantine/core';
 import { Property, PropertyDefaults } from '../lib/types';
 import { createNewProperty } from '../store/PropertyContext';
@@ -35,6 +40,11 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   const [activeTab, setActiveTab] = useState('immobiliendaten');
   const [financingType, setFinancingType] = useState<'loan' | 'cash'>(
     property?.defaults.financingType || 'loan'
+  );
+  
+  // Neue State-Variablen für die erweiterte Finanzierung
+  const [useSecondLoan, setUseSecondLoan] = useState<boolean>(
+    property?.defaults.useSecondLoan || false
   );
 
   // Ensure numeric values are properly converted to numbers
@@ -66,8 +76,13 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
         maintenanceDistribution: ensureNumber(property.defaults.maintenanceDistribution),
         financingType: property.defaults.financingType || 'loan',
         downPayment: ensureNumber(property.defaults.downPayment),
-        interestRate: ensureNumber(property.defaults.interestRate),
-        repaymentRate: ensureNumber(property.defaults.repaymentRate),
+        loanAmount1: ensureNumber(property.defaults.loanAmount1 || property.defaults.loanAmount || 0),
+        interestRate1: ensureNumber(property.defaults.interestRate1 || property.defaults.interestRate || 0),
+        repaymentRate1: ensureNumber(property.defaults.repaymentRate1 || property.defaults.repaymentRate || 0),
+        useSecondLoan: !!property.defaults.useSecondLoan,
+        loanAmount2: ensureNumber(property.defaults.loanAmount2 || 0),
+        interestRate2: ensureNumber(property.defaults.interestRate2 || 0),
+        repaymentRate2: ensureNumber(property.defaults.repaymentRate2 || 0),
         monthlyRent: ensureNumber(property.defaults.monthlyRent),
         vacancyRate: ensureNumber(property.defaults.vacancyRate),
         propertyTax: ensureNumber(property.defaults.propertyTax),
@@ -80,6 +95,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       
       // Also set the financing type state
       setFinancingType(property.defaults.financingType || 'loan');
+      setUseSecondLoan(!!property.defaults.useSecondLoan);
     } else {
       // Use default values for new property
       reset({
@@ -97,8 +113,13 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
         maintenanceDistribution: DEFAULT_PROPERTY_VALUES.maintenanceDistribution,
         financingType: DEFAULT_PROPERTY_VALUES.financingType,
         downPayment: DEFAULT_PROPERTY_VALUES.downPayment,
-        interestRate: DEFAULT_PROPERTY_VALUES.interestRate,
-        repaymentRate: DEFAULT_PROPERTY_VALUES.repaymentRate,
+        loanAmount1: DEFAULT_PROPERTY_VALUES.purchasePrice - DEFAULT_PROPERTY_VALUES.downPayment,
+        interestRate1: DEFAULT_PROPERTY_VALUES.interestRate,
+        repaymentRate1: DEFAULT_PROPERTY_VALUES.repaymentRate,
+        useSecondLoan: false,
+        loanAmount2: 0,
+        interestRate2: 0,
+        repaymentRate2: 0,
         monthlyRent: DEFAULT_PROPERTY_VALUES.monthlyRent,
         vacancyRate: DEFAULT_PROPERTY_VALUES.vacancyRate,
         propertyTax: DEFAULT_PROPERTY_VALUES.propertyTax,
@@ -111,6 +132,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       
       // Set default financing type
       setFinancingType(DEFAULT_PROPERTY_VALUES.financingType);
+      setUseSecondLoan(false);
     }
   }, [property, reset]);
 
@@ -120,6 +142,9 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   const watchBuildingValue = watch('buildingValue');
   const watchMaintenanceCost = watch('maintenanceCost');
   const watchFurnitureValue = watch('furnitureValue');
+  const watchDownPayment = watch('downPayment');
+  const watchLoanAmount1 = watch('loanAmount1');
+  const watchLoanAmount2 = watch('loanAmount2');
 
   // Convert to numbers with fallbacks
   const purchasePrice = ensureNumber(watchPurchasePrice);
@@ -127,10 +152,26 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   const buildingValue = ensureNumber(watchBuildingValue);
   const maintenanceCost = ensureNumber(watchMaintenanceCost);
   const furnitureValue = ensureNumber(watchFurnitureValue);
+  const downPayment = ensureNumber(watchDownPayment);
+  const loanAmount1 = ensureNumber(watchLoanAmount1);
+  const loanAmount2 = ensureNumber(watchLoanAmount2) * (useSecondLoan ? 1 : 0);
 
   // Calculate total allocation with maintenance cost included
   const totalAllocation = landValue + buildingValue + maintenanceCost + furnitureValue;
   const allocationError = Math.abs(totalAllocation - purchasePrice) > 1;
+  
+  // Berechnen der erforderlichen Finanzierung und Prüfen auf Fehler
+  const totalLoanAmount = loanAmount1 + loanAmount2;
+  const totalFinancing = downPayment + totalLoanAmount;
+  const financingError = Math.abs(totalFinancing - purchasePrice) > 1;
+
+  // Automatische Anpassung des ersten Darlehens, wenn sich andere Werte ändern
+  useEffect(() => {
+    if (financingType === 'loan') {
+      const requiredLoan = purchasePrice - downPayment - (useSecondLoan ? loanAmount2 : 0);
+      setValue('loanAmount1', Math.max(0, requiredLoan));
+    }
+  }, [purchasePrice, downPayment, useSecondLoan, loanAmount2, financingType, setValue]);
 
   const onSubmit = (data: PropertyDefaults & { name: string }) => {
     const { name, ...formDefaults } = data;
@@ -147,9 +188,22 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       maintenanceCost: ensureNumber(formDefaults.maintenanceCost),
       furnitureValue: ensureNumber(formDefaults.furnitureValue),
       maintenanceDistribution: ensureNumber(formDefaults.maintenanceDistribution),
+      
+      // Neue Finanzierungswerte
       downPayment: ensureNumber(formDefaults.downPayment),
-      interestRate: ensureNumber(formDefaults.interestRate),
-      repaymentRate: ensureNumber(formDefaults.repaymentRate),
+      loanAmount: ensureNumber(formDefaults.loanAmount1), // Für Kompatibilität mit bestehendem Code
+      interestRate: ensureNumber(formDefaults.interestRate1), // Für Kompatibilität
+      repaymentRate: ensureNumber(formDefaults.repaymentRate1), // Für Kompatibilität
+      
+      // Neue erweiterte Finanzierungswerte
+      loanAmount1: ensureNumber(formDefaults.loanAmount1),
+      interestRate1: ensureNumber(formDefaults.interestRate1),
+      repaymentRate1: ensureNumber(formDefaults.repaymentRate1),
+      useSecondLoan,
+      loanAmount2: useSecondLoan ? ensureNumber(formDefaults.loanAmount2) : 0,
+      interestRate2: useSecondLoan ? ensureNumber(formDefaults.interestRate2) : 0,
+      repaymentRate2: useSecondLoan ? ensureNumber(formDefaults.repaymentRate2) : 0,
+      
       monthlyRent: ensureNumber(formDefaults.monthlyRent),
       vacancyRate: ensureNumber(formDefaults.vacancyRate),
       propertyTax: ensureNumber(formDefaults.propertyTax),
@@ -183,6 +237,15 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       onSave(newProperty);
     }
   };
+
+  // Berechne das verfügbare Gesamtvolumen für die Finanzierung
+  const calculateAvailableFinancing = () => {
+    if (financingType !== 'loan') return 0;
+    return Math.max(0, purchasePrice - downPayment);
+  };
+
+  // Berechnen der verbleibenden Finanzierung für die zweite Hypothek
+  const remainingForSecondLoan = calculateAvailableFinancing() - loanAmount1;
 
   return (
     <Paper p="md" withBorder>
@@ -369,7 +432,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
             </Grid>
           </Tabs.Panel>
 
-          {/* Finanzierung Tab */}
+          {/* Finanzierung Tab - überarbeitet für mehrere Darlehen */}
           <Tabs.Panel value="finanzierung" pt="xs">
             <Radio.Group
               label="Finanzierungsart"
@@ -383,48 +446,176 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
             </Radio.Group>
             
             {financingType === 'loan' && (
-              <Grid mt="md">
-                <Grid.Col span={4}>
-                  <NumberInput
-                    label="Eigenkapital (€)"
-                    placeholder="z.B. 25000"
-                    required
-                    min={0}
-                    precision={0}
-                    value={watch('downPayment')}
-                    onChange={(val) => setValue('downPayment', ensureNumber(val))}
-                    error={errors.downPayment?.message}
-                  />
-                </Grid.Col>
-                <Grid.Col span={4}>
-                  <NumberInput
-                    label="Zinssatz (%)"
-                    placeholder="z.B. 4.0"
-                    required
-                    min={0}
-                    max={20}
-                    step={0.01}
-                    precision={2}
-                    value={watch('interestRate')}
-                    onChange={(val) => setValue('interestRate', ensureNumber(val))}
-                    error={errors.interestRate?.message}
-                  />
-                </Grid.Col>
-                <Grid.Col span={4}>
-                  <NumberInput
-                    label="Tilgungssatz (% p.a.)"
-                    placeholder="z.B. 1.5"
-                    required
-                    min={0}
-                    max={20}
-                    step={0.1}
-                    precision={1}
-                    value={watch('repaymentRate')}
-                    onChange={(val) => setValue('repaymentRate', ensureNumber(val))}
-                    error={errors.repaymentRate?.message}
-                  />
-                </Grid.Col>
-              </Grid>
+              <Box mt="md">
+                <Card withBorder p="sm" mb="md">
+                  <Grid>
+                    <Grid.Col span={12}>
+                      <Text weight={500} mb="xs">Gesamtkosten & Eigenkapital</Text>
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <NumberInput
+                        label="Kaufpreis (€)"
+                        value={purchasePrice}
+                        disabled
+                        precision={0}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <NumberInput
+                        label="Eigenkapital (€)"
+                        placeholder="z.B. 25000"
+                        required
+                        min={0}
+                        max={purchasePrice}
+                        precision={0}
+                        value={watch('downPayment')}
+                        onChange={(val) => setValue('downPayment', ensureNumber(val))}
+                        error={errors.downPayment?.message}
+                      />
+                    </Grid.Col>
+                    
+                    <Grid.Col span={12}>
+                      <Text weight={500} size="sm" mt="xs">Zu finanzierender Betrag: {(purchasePrice - downPayment).toLocaleString('de-DE')} €</Text>
+                    </Grid.Col>
+                  </Grid>
+                </Card>
+                
+                <Card withBorder p="sm" mb="md">
+                  <Text weight={500} mb="xs">Darlehen 1</Text>
+                  <Grid>
+                    <Grid.Col span={4}>
+                      <NumberInput
+                        label="Darlehensbetrag (€)"
+                        placeholder="z.B. 291500"
+                        required
+                        min={0}
+                        max={calculateAvailableFinancing()}
+                        precision={0}
+                        value={watch('loanAmount1')}
+                        onChange={(val) => setValue('loanAmount1', ensureNumber(val))}
+                        error={errors.loanAmount1?.message}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <NumberInput
+                        label="Zinssatz (%)"
+                        placeholder="z.B. 4.0"
+                        required
+                        min={0}
+                        max={20}
+                        step={0.01}
+                        precision={2}
+                        value={watch('interestRate1')}
+                        onChange={(val) => setValue('interestRate1', ensureNumber(val))}
+                        error={errors.interestRate1?.message}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <NumberInput
+                        label="Tilgungssatz (% p.a.)"
+                        placeholder="z.B. 1.5"
+                        required
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        precision={1}
+                        value={watch('repaymentRate1')}
+                        onChange={(val) => setValue('repaymentRate1', ensureNumber(val))}
+                        error={errors.repaymentRate1?.message}
+                      />
+                    </Grid.Col>
+                    
+                    <Grid.Col span={12}>
+                      <Box mt="md">
+                        <Switch
+                          label="Zweites Darlehen hinzufügen"
+                          checked={useSecondLoan}
+                          onChange={(event) => {
+                            const newValue = event.currentTarget.checked;
+                            setUseSecondLoan(newValue);
+                            // Bei Deaktivierung zweite Finanzierung zurücksetzen
+                            if (!newValue) {
+                              setValue('loanAmount2', 0);
+                              setValue('interestRate2', 0);
+                              setValue('repaymentRate2', 0);
+                            }
+                          }}
+                        />
+                      </Box>
+                    </Grid.Col>
+                  </Grid>
+                </Card>
+                
+                {useSecondLoan && (
+                  <Card withBorder p="sm" mb="md">
+                    <Text weight={500} mb="xs">Darlehen 2</Text>
+                    <Grid>
+                      <Grid.Col span={4}>
+                        <NumberInput
+                          label="Darlehensbetrag (€)"
+                          placeholder="z.B. 50000"
+                          required
+                          min={0}
+                          max={calculateAvailableFinancing()}
+                          precision={0}
+                          value={watch('loanAmount2')}
+                          onChange={(val) => setValue('loanAmount2', ensureNumber(val))}
+                          error={errors.loanAmount2?.message}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={4}>
+                        <NumberInput
+                          label="Zinssatz (%)"
+                          placeholder="z.B. 3.0"
+                          required
+                          min={0}
+                          max={20}
+                          step={0.01}
+                          precision={2}
+                          value={watch('interestRate2')}
+                          onChange={(val) => setValue('interestRate2', ensureNumber(val))}
+                          error={errors.interestRate2?.message}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={4}>
+                        <NumberInput
+                          label="Tilgungssatz (% p.a.)"
+                          placeholder="z.B. 2.0"
+                          required
+                          min={0}
+                          max={20}
+                          step={0.1}
+                          precision={1}
+                          value={watch('repaymentRate2')}
+                          onChange={(val) => setValue('repaymentRate2', ensureNumber(val))}
+                          error={errors.repaymentRate2?.message}
+                        />
+                      </Grid.Col>
+                    </Grid>
+                  </Card>
+                )}
+                
+                <Box>
+                  <Divider my="md" />
+                  <Grid>
+                    <Grid.Col span={6}>
+                      <Text weight={600}>Finanzierungssumme:</Text>
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <Text align="right" weight={600}>
+                        {(downPayment + loanAmount1 + loanAmount2).toLocaleString('de-DE')} €
+                      </Text>
+                    </Grid.Col>
+                  </Grid>
+                  
+                  {financingError && (
+                    <Text color="red" mt="sm">
+                      Warnung: Die Finanzierungssumme ({(downPayment + loanAmount1 + loanAmount2).toLocaleString('de-DE')} €) 
+                      stimmt nicht mit dem Kaufpreis ({purchasePrice.toLocaleString('de-DE')} €) überein!
+                    </Text>
+                  )}
+                </Box>
+              </Box>
             )}
           </Tabs.Panel>
 
