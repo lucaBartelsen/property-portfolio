@@ -3,6 +3,7 @@ import { Property, PurchaseData, OngoingData, CalculationResults, YearlyData, Ta
 import { calculateGermanIncomeTax, calculateChurchTax } from './taxCalculator';
 import { calculatePurchase } from './purchaseCalculator';
 import { calculateOngoing } from './ongoingCalculator';
+import { BUNDESLAENDER } from '../constants';
 
 /**
  * Sicherstellt, dass ein Wert eine gültige Zahl ist mit Minimum/Maximum-Grenzen
@@ -199,10 +200,11 @@ export function calculateCashflow(
     
     // Sicherstellen, dass totalCost einen gültigen Wert hat
     const totalCost = ensureValidNumber(purchaseData.totalCost, 0, 1e9, 
-      // Falls totalCost nicht vorhanden ist, berechne aus Grundwerten
+      // If totalCost is not available, calculate from basic values
       ensureValidNumber(property.defaults.purchasePrice, 0, 1e9, 316500) * 
       (1 + ensureValidNumber(property.defaults.notaryRate, 0, 100, 1.5) / 100 + 
-           ensureValidNumber(property.defaults.brokerRate, 0, 100, 3) / 100)
+          ensureValidNumber(property.defaults.brokerRate, 0, 100, 3) / 100 +
+          (BUNDESLAENDER.find(b => b.code === property.defaults.bundesland)?.taxRate || 3.5) / 100)
     );
     
     if (financingType === 'loan') {

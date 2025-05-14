@@ -160,18 +160,40 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   const totalAllocation = landValue + buildingValue + maintenanceCost + furnitureValue;
   const allocationError = Math.abs(totalAllocation - purchasePrice) > 1;
   
-  // Berechnen der erforderlichen Finanzierung und Prüfen auf Fehler
+  // Calculate total cost including additional costs
+  const selectedBundesland = BUNDESLAENDER.find(land => land.code === watch('bundesland')) || BUNDESLAENDER[0];
+  const grunderwerbsteuerRate = selectedBundesland.taxRate;
+  const notaryRate = watch('notaryRate');
+  const brokerRate = watch('brokerRate');
+
+  // Calculate total cost
+  const grunderwerbsteuer = purchasePrice * (grunderwerbsteuerRate / 100);
+  const notaryCosts = purchasePrice * (notaryRate / 100);
+  const brokerFee = purchasePrice * (brokerRate / 100);
+  const totalExtraCosts = grunderwerbsteuer + notaryCosts + brokerFee;
+  const totalCost = purchasePrice + totalExtraCosts;
+
+  // Financing calculations based on total cost
   const totalLoanAmount = loanAmount1 + loanAmount2;
   const totalFinancing = downPayment + totalLoanAmount;
-  const financingError = Math.abs(totalFinancing - purchasePrice) > 1;
+  const financingError = Math.abs(totalFinancing - totalCost) > 1;
 
   // Automatische Anpassung des ersten Darlehens, wenn sich andere Werte ändern
   useEffect(() => {
-    if (financingType === 'loan') {
-      const requiredLoan = purchasePrice - downPayment - (useSecondLoan ? loanAmount2 : 0);
+  if (financingType === 'loan') {
+      // Get the total cost including extra costs
+      const selectedBundesland = BUNDESLAENDER.find(land => land.code === watch('bundesland')) || BUNDESLAENDER[0];
+      const grunderwerbsteuerRate = selectedBundesland.taxRate;
+      const notaryRate = watch('notaryRate');
+      const brokerRate = watch('brokerRate');
+
+      const extraCosts = purchasePrice * (grunderwerbsteuerRate / 100 + notaryRate / 100 + brokerRate / 100);
+      const totalCost = purchasePrice + extraCosts;
+      
+      const requiredLoan = totalCost - downPayment - (useSecondLoan ? loanAmount2 : 0);
       setValue('loanAmount1', Math.max(0, requiredLoan));
     }
-  }, [purchasePrice, downPayment, useSecondLoan, loanAmount2, financingType, setValue]);
+  }, [purchasePrice, downPayment, useSecondLoan, loanAmount2, financingType, setValue, watch]);
 
   const onSubmit = (data: PropertyDefaults & { name: string }) => {
     const { name, ...formDefaults } = data;
@@ -454,8 +476,8 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     </Grid.Col>
                     <Grid.Col span={6}>
                       <NumberInput
-                        label="Kaufpreis (€)"
-                        value={purchasePrice}
+                        label="Kaufpreis inkl. Nebenkosten (€)"
+                        value={totalCost}
                         disabled
                         precision={0}
                       />
@@ -466,7 +488,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                         placeholder="z.B. 25000"
                         required
                         min={0}
-                        max={purchasePrice}
+                        max={totalCost}
                         precision={0}
                         value={watch('downPayment')}
                         onChange={(val) => setValue('downPayment', ensureNumber(val))}
@@ -475,7 +497,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                     </Grid.Col>
                     
                     <Grid.Col span={12}>
-                      <Text weight={500} size="sm" mt="xs">Zu finanzierender Betrag: {(purchasePrice - downPayment).toLocaleString('de-DE')} €</Text>
+                      <Text weight={500} size="sm" mt="xs">Zu finanzierender Betrag: {(totalCost - downPayment).toLocaleString('de-DE')} €</Text>
                     </Grid.Col>
                   </Grid>
                 </Card>
@@ -611,7 +633,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
                   {financingError && (
                     <Text color="red" mt="sm">
                       Warnung: Die Finanzierungssumme ({(downPayment + loanAmount1 + loanAmount2).toLocaleString('de-DE')} €) 
-                      stimmt nicht mit dem Kaufpreis ({purchasePrice.toLocaleString('de-DE')} €) überein!
+                      stimmt nicht mit dem Kaufpreis ({totalCost.toLocaleString('de-DE')} €) überein!
                     </Text>
                   )}
                 </Box>
