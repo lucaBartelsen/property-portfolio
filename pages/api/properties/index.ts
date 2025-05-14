@@ -3,10 +3,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]';
-import { calculatePurchase } from '../../../lib/calculators/purchaseCalculator';
-import { calculateOngoing } from '../../../lib/calculators/ongoingCalculator';
-import { calculateCashflow } from '../../../lib/calculators/cashflowCalculator';
 import { TaxInfo } from '../../../lib/types';
+import { CalculationService } from '@/services/calculationService';
 
 const prisma = new PrismaClient();
 
@@ -139,18 +137,10 @@ export default async function handler(
       calculationResults: null,
       yearlyData: null
     };
-
-    // Calculate purchase data first
-    const purchaseData = calculatePurchase(propertyData);
     
-    // Calculate ongoing costs with purchase data
-    const ongoingData = calculateOngoing(propertyData);
-    
-    // Calculate complete cashflow with both previous results
-    const { results: calculationResults, yearlyData } = calculateCashflow(
-      { ...propertyData, purchaseData, ongoingData },
-      taxInfo,
-      10
+    const { purchaseData, ongoingData, results: calculationResults, yearlyData } = CalculationService.calculatePropertyData(
+      propertyData, 
+      taxInfo
     );
     
     // Save the property with calculated data

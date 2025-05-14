@@ -1,5 +1,5 @@
 // pages/portfolio-overview.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import {
@@ -24,6 +24,7 @@ import YearTable from '../components/YearTable';
 import { formatCurrency } from '../lib/utils/formatters';
 import { usePropertyStore } from '../store/PropertyContext';
 import { Property, Portfolio } from '../lib/types';
+import { CalculationService } from '@/services/calculationService';
 
 // Define color palette for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -32,14 +33,14 @@ export default function PortfolioOverview() {
 
   const router = useRouter();
   const { customerId, portfolioId } = router.query; // Get URL parameters
-  const { data: session, status } = useSession({
+  const { status } = useSession({
     required: true,
     onUnauthenticated() {
       router.push('/login');
     },
   });
   
-  const { state, dispatch } = usePropertyStore();
+  const { dispatch } = usePropertyStore();
   
   const [loading, setLoading] = useState(true);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -213,56 +214,14 @@ export default function PortfolioOverview() {
   };
   
   const calculatePortfolioStats = (propertiesData: Property[]) => {
-    if (!propertiesData || propertiesData.length === 0) {
-      resetPortfolioStats();
-      return;
-    }
-    
-    const stats = {
-      totalValue: 0,
-      totalEquity: 0,
-      totalDebt: 0,
-      avgCashflow: 0,
-      avgROI: 0,
-      propertyCount: propertiesData.length,
-      cashflowPositive: 0,
-      cashflowNegative: 0
-    };
-    
-    let totalCashflow = 0;
-    let totalROI = 0;
-    
-    propertiesData.forEach(property => {
-      if (property.calculationResults) {
-        // Property value
-        stats.totalValue += property.calculationResults.finalPropertyValue || 0;
-        
-        // Equity & Debt
-        stats.totalEquity += property.calculationResults.finalEquity || 0;
-        stats.totalDebt += property.calculationResults.remainingLoan || 0;
-        
-        // Cashflow
-        const monthlyCashflow = property.calculationResults.monthlyCashflow || 0;
-        totalCashflow += monthlyCashflow;
-        
-        if (monthlyCashflow >= 0) {
-          stats.cashflowPositive += 1;
-        } else {
-          stats.cashflowNegative += 1;
-        }
-        
-        // ROI
-        const initialEquity = property.calculationResults.initialEquity || 1;
-        const roi = (monthlyCashflow * 12) / initialEquity * 100;
-        totalROI += roi;
-      }
-    });
-    
-    stats.avgCashflow = totalCashflow / stats.propertyCount;
-    stats.avgROI = totalROI / stats.propertyCount;
-    
-    setPortfolioStats(stats);
-  };
+  if (!propertiesData || propertiesData.length === 0) {
+    resetPortfolioStats();
+    return;
+  }
+  
+  const stats = CalculationService.calculatePortfolioStats(propertiesData);
+  setPortfolioStats(stats);
+};
   
   const resetPortfolioStats = () => {
     setPortfolioStats({
@@ -284,10 +243,6 @@ export default function PortfolioOverview() {
   ];
   
   // Prepare pie chart data for cashflow distribution
-  const cashflowDistributionData = [
-    { name: 'Positiver Cashflow', value: portfolioStats.cashflowPositive },
-    { name: 'Negativer Cashflow', value: portfolioStats.cashflowNegative }
-  ];
   
   // Prepare data for cashflow by property chart
   const cashflowByPropertyData = properties
@@ -304,11 +259,6 @@ export default function PortfolioOverview() {
   };
   
   // Recalculate data
-  const handleRecalculate = () => {
-    // Clear the store and reload properties
-    dispatch({ type: 'RESET_PROPERTIES' });
-    fetchProperties(selectedPortfolio);
-  };
   
   if (status === 'loading' || (loading && portfolios.length === 0)) {
     return (
@@ -438,7 +388,7 @@ export default function PortfolioOverview() {
                               ))}
                             </Pie>
                             <Tooltip 
-                            formatter={(value: number, name: string) => formatCurrency(value)} 
+                            formatter={(value: number) => formatCurrency(value)} 
                             />
                             <Legend />
                           </PieChart>
@@ -460,7 +410,7 @@ export default function PortfolioOverview() {
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip 
-                            formatter={(value: number, name: string) => formatCurrency(value)} 
+                            formatter={(value: number) => formatCurrency(value)} 
                             />
                             <Legend />
                             <Line

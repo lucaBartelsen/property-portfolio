@@ -7,6 +7,7 @@ import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
 import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
 import { DEFAULT_PROPERTY_VALUES } from '../lib/constants';
 import { calculateChurchTax, calculateGermanIncomeTax } from '@/lib/calculators/taxCalculator';
+import { CalculationService } from '@/services/calculationService';
 
 // Action types
 type Action = 
@@ -45,17 +46,7 @@ const PropertyContext = createContext<{
 // Calculate all data for a property
 function calculatePropertyData(property: Property, taxInfo: TaxInfo): Property {
   try {
-    // Calculate purchase and ongoing data
-    const purchaseData = calculatePurchase(property);
-    const ongoingData = calculateOngoing(property);
-    
-    // Calculate cashflow
-    const calculationPeriod = 10; // Standard period
-    const { results, yearlyData } = calculateCashflow(
-      { ...property, purchaseData, ongoingData },
-      taxInfo,
-      calculationPeriod
-    );
+    const { purchaseData, ongoingData, results, yearlyData } = CalculationService.calculatePropertyData(property, taxInfo);
     
     // Update property with calculated data
     return {
