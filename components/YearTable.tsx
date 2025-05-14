@@ -246,70 +246,170 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     
     // Years as column headers
     for (let i = 0; i < calculationPeriod; i++) {
-      csvContent += `;Jahr ${i + 1}`;
+        csvContent += `;Jahr ${i + 1}`;
     }
     csvContent += '\n';
     
-    // Add data rows
-    
-    // 1. Rent income
+    // 1. Mieteinnahmen (Rent income)
     csvContent += addCsvRow('Mieteinnahmen', (data: YearlyData) => data.rent);
+    if (isCategoryExpanded('income')) {
+        csvContent += addCsvRow('  Mieteinnahmen (brutto)', (data: YearlyData) => data.rent * 100/(100-data.vacancyRate));
+        csvContent += addCsvRow('  Leerstand', (data: YearlyData) => -(data.rent * 100/(100-data.vacancyRate) - data.rent));
+        csvContent += addCsvRow('  Effektive Mieteinnahmen', (data: YearlyData) => data.rent);
+    }
+    
+    // 2. Bewirtschaftungskosten (Operating costs)
+    csvContent += addCsvRow('Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
+    if (isCategoryExpanded('costs')) {
+        csvContent += addCsvRow('  Grundsteuer', (data: YearlyData) => -data.propertyTax);
+        csvContent += addCsvRow('  Hausverwaltung', (data: YearlyData) => -data.managementFee);
+        csvContent += addCsvRow('  Instandhaltungsrücklage', (data: YearlyData) => -data.maintenanceReserve);
+        csvContent += addCsvRow('  Versicherungen', (data: YearlyData) => -data.insurance);
+        csvContent += addCsvRow('  Gesamte Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
+    }
+    
+    // 3. Cashflow vor Finanzierung (Cashflow before financing)
+    csvContent += addCsvRow('Cashflow vor Finanzierung', (data: YearlyData) => data.cashflowBeforeFinancing);
+    
+    // 4. Finanzierung (Financing)
+    csvContent += addCsvRow('Finanzierung', (data: YearlyData) => -data.payment);
+    if (isCategoryExpanded('financing')) {
+        csvContent += addCsvRow('  Zinsanteil', (data: YearlyData) => -data.interest);
+        csvContent += addCsvRow('  Tilgungsanteil', (data: YearlyData) => -data.principal);
+        csvContent += addCsvRow('  Annuität (Rate)', (data: YearlyData) => -data.payment);
+    }
+    
+    // 5. Cashflow vor Steuern (Cashflow before tax)
+    csvContent += addCsvRow('Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
+    
+    // 6. Abschreibungen & Steuern (Depreciation & tax)
+    csvContent += addCsvRow('Abschreibungen & Steuern', (data: YearlyData) => -data.taxableIncome);
+    if (isCategoryExpanded('tax')) {
+        csvContent += addCsvRow('  Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
+        csvContent += addCsvRow('  Tilgungsanteil (nicht abzugsfähig)', (data: YearlyData) => data.principal);
+        csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => -data.buildingDepreciation);
+        csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => -data.furnitureDepreciation);
+        csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => -data.maintenanceDeduction);
+        
+        if (yearlyData.some(data => data.firstYearDeductibleCosts > 0)) {
+        csvContent += addCsvRow('  Maklerkosten als Beratungsleistung', (data: YearlyData) => -data.firstYearDeductibleCosts);
+        }
+        
+        csvContent += addCsvRow('  Ergebnis vor Steuer', (data: YearlyData) => data.taxableIncome);
+    }
+    
+    // 7. Steuerersparnis (Tax savings)
+    csvContent += addCsvRow('Steuerersparnis', (data: YearlyData) => data.taxSavings);
+    if (isCategoryExpanded('tax-savings')) {
+        csvContent += addCsvRow('  Zu versteuerndes Einkommen (ohne Immobilie)', (data: YearlyData) => data.previousIncome);
+        csvContent += addCsvRow('  Zu versteuerndes Einkommen (mit Immobilie)', (data: YearlyData) => data.newTotalIncome);
+        csvContent += addCsvRow('  Einkommensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousTax);
+        csvContent += addCsvRow('  Einkommensteuer (mit Immobilie)', (data: YearlyData) => -data.newTax);
+        
+        if (yearlyData.some(data => data.previousChurchTax > 0 || data.newChurchTax > 0)) {
+        csvContent += addCsvRow('  Kirchensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousChurchTax);
+        csvContent += addCsvRow('  Kirchensteuer (mit Immobilie)', (data: YearlyData) => -data.newChurchTax);
+        }
+        
+        csvContent += addCsvRow('  Gesamte Steuerersparnis', (data: YearlyData) => data.taxSavings);
+    }
+    
+    // 8. Cashflow nach Steuern (Cashflow after tax)
+    csvContent += addCsvRow('Cashflow nach Steuern', (data: YearlyData) => data.cashflow);
+    
+    // 9. Vermögenswerte (Assets)
+    csvContent += addCsvRow('Vermögenswerte', (data: YearlyData) => data.equity);
+    if (isCategoryExpanded('assets')) {
+        csvContent += addCsvRow('  Immobilienwert', (data: YearlyData) => data.propertyValue);
+        csvContent += addCsvRow('  Restschuld', (data: YearlyData) => -data.loanBalance);
+        csvContent += addCsvRow('  Eigenkapital', (data: YearlyData) => data.equity);
+        csvContent += addCsvRow('  Eigenkapitalrendite (%)', (data: YearlyData) => (data.cashflow / data.initialEquity * 100), true);
+    }
+
+    // Create and download CSV file
+    downloadCsv(csvContent, 'immobilien-jahresuebersicht.csv');
+    };
+
+  const exportAllToCsv = () => {
+    if (!yearlyData) return;
+
+    // CSV-Inhalt erstellen
+    let csvContent = 'Kategorie';
+    
+    // Jahre als Spaltenüberschriften
+    for (let i = 0; i < calculationPeriod; i++) {
+        csvContent += `;Jahr ${i + 1}`;
+    }
+    csvContent += '\n';
+    
+    // 1. Mieteinnahmen - immer alle Details einschließen
+    csvContent += addCsvRow('Mieteinnahmen', (data: YearlyData) => data.rent);
+    // Details immer einschließen, unabhängig vom aktuellen Zustand
     csvContent += addCsvRow('  Mieteinnahmen (brutto)', (data: YearlyData) => data.rent * 100/(100-data.vacancyRate));
     csvContent += addCsvRow('  Leerstand', (data: YearlyData) => -(data.rent * 100/(100-data.vacancyRate) - data.rent));
     csvContent += addCsvRow('  Effektive Mieteinnahmen', (data: YearlyData) => data.rent);
     
-    // 2. Operating costs
-    csvContent += addCsvRow('Bewirtschaftungskosten', (data: YearlyData) => data.ongoingCosts);
-    csvContent += addCsvRow('  Grundsteuer', (data: YearlyData) => data.propertyTax);
-    csvContent += addCsvRow('  Hausverwaltung', (data: YearlyData) => data.managementFee);
-    csvContent += addCsvRow('  Instandhaltungsrücklage', (data: YearlyData) => data.maintenanceReserve);
-    csvContent += addCsvRow('  Versicherungen', (data: YearlyData) => data.insurance);
+    // 2. Bewirtschaftungskosten - immer alle Details einschließen
+    csvContent += addCsvRow('Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
+    csvContent += addCsvRow('  Grundsteuer', (data: YearlyData) => -data.propertyTax);
+    csvContent += addCsvRow('  Hausverwaltung', (data: YearlyData) => -data.managementFee);
+    csvContent += addCsvRow('  Instandhaltungsrücklage', (data: YearlyData) => -data.maintenanceReserve);
+    csvContent += addCsvRow('  Versicherungen', (data: YearlyData) => -data.insurance);
+    csvContent += addCsvRow('  Gesamte Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
     
-    // 3. Cashflow before financing
+    // 3. Cashflow vor Finanzierung
     csvContent += addCsvRow('Cashflow vor Finanzierung', (data: YearlyData) => data.cashflowBeforeFinancing);
     
-    // 4. Financing
-    csvContent += addCsvRow('Finanzierung', (data: YearlyData) => data.payment);
-    csvContent += addCsvRow('  Zinsanteil', (data: YearlyData) => data.interest);
-    csvContent += addCsvRow('  Tilgungsanteil', (data: YearlyData) => data.principal);
+    // 4. Finanzierung - immer alle Details einschließen
+    csvContent += addCsvRow('Finanzierung', (data: YearlyData) => -data.payment);
+    csvContent += addCsvRow('  Zinsanteil', (data: YearlyData) => -data.interest);
+    csvContent += addCsvRow('  Tilgungsanteil', (data: YearlyData) => -data.principal);
+    csvContent += addCsvRow('  Annuität (Rate)', (data: YearlyData) => -data.payment);
     
-    // 5. Cashflow before tax
+    // 5. Cashflow vor Steuern
     csvContent += addCsvRow('Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
     
-    // 6. Depreciation & tax
-    csvContent += addCsvRow('Abschreibungen & Steuern', (data: YearlyData) => data.totalDepreciation);
-    csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => data.buildingDepreciation);
-    csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => data.furnitureDepreciation);
-    csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => data.maintenanceDeduction);
+    // 6. Abschreibungen & Steuern - immer alle Details einschließen
+    csvContent += addCsvRow('Abschreibungen & Steuern', (data: YearlyData) => -data.taxableIncome);
+    csvContent += addCsvRow('  Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
+    csvContent += addCsvRow('  Tilgungsanteil (nicht abzugsfähig)', (data: YearlyData) => data.principal);
+    csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => -data.buildingDepreciation);
+    csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => -data.furnitureDepreciation);
+    csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => -data.maintenanceDeduction);
+    
     if (yearlyData.some(data => data.firstYearDeductibleCosts > 0)) {
-        csvContent += addCsvRow('  Maklerkosten als Beratungsleistung', (data: YearlyData) => data.firstYearDeductibleCosts);
-    }
-    csvContent += addCsvRow('  Ergebnis vor Steuern', (data: YearlyData) => data.taxableIncome);
-    csvContent += addCsvRow('  Zu versteuerndes Einkommen (vorher)', (data: YearlyData) => data.previousIncome);
-    csvContent += addCsvRow('  Neues zu versteuerndes Gesamteinkommen', (data: YearlyData) => data.newTotalIncome);
-    csvContent += addCsvRow('  Einkommensteuer (vorher)', (data: YearlyData) => data.previousTax);
-    csvContent += addCsvRow('  Einkommensteuer (nachher)', (data: YearlyData) => data.newTax);
-    if (yearlyData.some(data => data.previousChurchTax > 0)) {
-        csvContent += addCsvRow('  Kirchensteuer (vorher)', (data: YearlyData) => data.previousChurchTax);
-        csvContent += addCsvRow('  Kirchensteuer (nachher)', (data: YearlyData) => data.newChurchTax);
+        csvContent += addCsvRow('  Maklerkosten als Beratungsleistung', (data: YearlyData) => -data.firstYearDeductibleCosts);
     }
     
-    // 7. Tax savings
+    csvContent += addCsvRow('  Ergebnis vor Steuer', (data: YearlyData) => data.taxableIncome);
+    
+    // 7. Steuerersparnis - immer alle Details einschließen
     csvContent += addCsvRow('Steuerersparnis', (data: YearlyData) => data.taxSavings);
+    csvContent += addCsvRow('  Zu versteuerndes Einkommen (ohne Immobilie)', (data: YearlyData) => data.previousIncome);
+    csvContent += addCsvRow('  Zu versteuerndes Einkommen (mit Immobilie)', (data: YearlyData) => data.newTotalIncome);
+    csvContent += addCsvRow('  Einkommensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousTax);
+    csvContent += addCsvRow('  Einkommensteuer (mit Immobilie)', (data: YearlyData) => -data.newTax);
     
-    // 8. Cashflow after tax
+    if (yearlyData.some(data => data.previousChurchTax > 0 || data.newChurchTax > 0)) {
+        csvContent += addCsvRow('  Kirchensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousChurchTax);
+        csvContent += addCsvRow('  Kirchensteuer (mit Immobilie)', (data: YearlyData) => -data.newChurchTax);
+    }
+    
+    csvContent += addCsvRow('  Gesamte Steuerersparnis', (data: YearlyData) => data.taxSavings);
+    
+    // 8. Cashflow nach Steuern
     csvContent += addCsvRow('Cashflow nach Steuern', (data: YearlyData) => data.cashflow);
     
-    // 9. Assets
+    // 9. Vermögenswerte - immer alle Details einschließen
     csvContent += addCsvRow('Vermögenswerte', (data: YearlyData) => data.equity);
     csvContent += addCsvRow('  Immobilienwert', (data: YearlyData) => data.propertyValue);
-    csvContent += addCsvRow('  Restschuld', (data: YearlyData) => data.loanBalance);
+    csvContent += addCsvRow('  Restschuld', (data: YearlyData) => -data.loanBalance);
     csvContent += addCsvRow('  Eigenkapital', (data: YearlyData) => data.equity);
     csvContent += addCsvRow('  Eigenkapitalrendite (%)', (data: YearlyData) => (data.cashflow / data.initialEquity * 100), true);
 
-    // Create and download CSV file
-    downloadCsv(csvContent, 'immobilien-jahresuebersicht.csv');
-  };
+    // CSV-Datei erstellen und herunterladen
+    downloadCsv(csvContent, 'immobilien-jahresuebersicht-vollstaendig.csv');
+    };
 
   // Helper function to add a row to the CSV content
   const addCsvRow = (
@@ -353,28 +453,33 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
       </Group>
       
       <Group position="apart" mb="sm">
-        
         <Button.Group>
-          <Button 
+            <Button 
             variant="light"
             onClick={exportToCsv}
-          >
-            CSV Export
-          </Button>
-          <Button 
+            >
+            CSV Export (aktuelle Ansicht)
+            </Button>
+            <Button 
+            variant="light"
+            onClick={exportAllToCsv}
+            >
+            Vollständiger CSV Export
+            </Button>
+            <Button 
             variant="light"
             onClick={expandAll}
-          >
+            >
             Alle aufklappen
-          </Button>
-          <Button 
+            </Button>
+            <Button 
             variant="light"
             onClick={collapseAll}
-          >
+            >
             Alle zuklappen
-          </Button>
+            </Button>
         </Button.Group>
-      </Group>
+        </Group>
       
       <div style={{ overflowX: 'auto' }}>
         <Table striped highlightOnHover>
