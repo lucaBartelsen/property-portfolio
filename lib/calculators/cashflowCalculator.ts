@@ -4,16 +4,12 @@ import { calculateGermanIncomeTax, calculateChurchTax } from './taxCalculator';
 import { calculatePurchase } from './purchaseCalculator';
 import { calculateOngoing } from './ongoingCalculator';
 import { BUNDESLAENDER } from '../constants';
+import { ensureValidNumber } from '../utils/formatters';
+import { calculateTotalCost } from '../utils/calculations';
 
 /**
  * Sicherstellt, dass ein Wert eine gültige Zahl ist mit Minimum/Maximum-Grenzen
  */
-function ensureValidNumber(value: number | null | undefined, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number {
-  if (value === null || value === undefined || typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
-    return defaultValue;
-  }
-  return Math.max(min, Math.min(max, value));
-}
 
 /**
  * Berechnet den Cashflow und Investitionskennzahlen für eine Immobilie
@@ -197,15 +193,7 @@ export function calculateCashflow(
     let loanAmount = financingCosts.totalLoanAmount;
     let annuity = financingCosts.totalAnnuity;
 
-    
-    // Sicherstellen, dass totalCost einen gültigen Wert hat
-    const totalCost = ensureValidNumber(purchaseData.totalCost, 0, 1e9, 
-      // If totalCost is not available, calculate from basic values
-      ensureValidNumber(property.defaults.purchasePrice, 0, 1e9, 316500) * 
-      (1 + ensureValidNumber(property.defaults.notaryRate, 0, 100, 1.5) / 100 + 
-          ensureValidNumber(property.defaults.brokerRate, 0, 100, 3) / 100 +
-          (BUNDESLAENDER.find(b => b.code === property.defaults.bundesland)?.taxRate || 3.5) / 100)
-    );
+    const totalCost = calculateTotalCost(property.defaults.purchasePrice, property.defaults.bundesland, property.defaults.notaryRate, property.defaults.brokerRate)
     
     if (financingType === 'loan') {
       loanAmount = ensureValidNumber(totalCost - downPayment, 0, 1e9);

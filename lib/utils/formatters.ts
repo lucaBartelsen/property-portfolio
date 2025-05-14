@@ -74,3 +74,10 @@ export function formatPercentage(value: number | string): string {
     return (cappedValue).toFixed(2).replace('.', ',') + ' %';
   }
 }
+
+export function ensureValidNumber(value: number | null | undefined, min: number = -1e9, max: number = 1e9, defaultValue: number = 0): number {
+  if (value === null || value === undefined || typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+    return defaultValue;
+  }
+  return Math.max(min, Math.min(max, value));
+}

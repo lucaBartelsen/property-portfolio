@@ -28,6 +28,7 @@ import {
   DEFAULT_PROPERTY_VALUES,
   MAINTENANCE_DISTRIBUTION_OPTIONS 
 } from '../lib/constants';
+import { calculateTotalCost } from '@/lib/utils/calculations';
 
 interface PropertyFormProps {
   property?: Property;
@@ -159,19 +160,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   // Calculate total allocation with maintenance cost included
   const totalAllocation = landValue + buildingValue + maintenanceCost + furnitureValue;
   const allocationError = Math.abs(totalAllocation - purchasePrice) > 1;
-  
-  // Calculate total cost including additional costs
-  const selectedBundesland = BUNDESLAENDER.find(land => land.code === watch('bundesland')) || BUNDESLAENDER[0];
-  const grunderwerbsteuerRate = selectedBundesland.taxRate;
-  const notaryRate = watch('notaryRate');
-  const brokerRate = watch('brokerRate');
-
-  // Calculate total cost
-  const grunderwerbsteuer = purchasePrice * (grunderwerbsteuerRate / 100);
-  const notaryCosts = purchasePrice * (notaryRate / 100);
-  const brokerFee = purchasePrice * (brokerRate / 100);
-  const totalExtraCosts = grunderwerbsteuer + notaryCosts + brokerFee;
-  const totalCost = purchasePrice + totalExtraCosts;
+  const totalCost = calculateTotalCost(watch('purchasePrice'), watch('bundesland'), watch('notaryRate'), watch('brokerRate'))
 
   // Financing calculations based on total cost
   const totalLoanAmount = loanAmount1 + loanAmount2;
@@ -182,13 +171,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   useEffect(() => {
   if (financingType === 'loan') {
       // Get the total cost including extra costs
-      const selectedBundesland = BUNDESLAENDER.find(land => land.code === watch('bundesland')) || BUNDESLAENDER[0];
-      const grunderwerbsteuerRate = selectedBundesland.taxRate;
-      const notaryRate = watch('notaryRate');
-      const brokerRate = watch('brokerRate');
-
-      const extraCosts = purchasePrice * (grunderwerbsteuerRate / 100 + notaryRate / 100 + brokerRate / 100);
-      const totalCost = purchasePrice + extraCosts;
+      const totalCost = calculateTotalCost(purchasePrice, watch('bundesland'), watch('notaryRate'), watch('brokerRate'))
       
       const requiredLoan = totalCost - downPayment - (useSecondLoan ? loanAmount2 : 0);
       setValue('loanAmount1', Math.max(0, requiredLoan));

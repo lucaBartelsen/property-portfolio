@@ -1,6 +1,7 @@
 // src/lib/calculators/purchaseCalculator.ts
 import { Property, PurchaseData } from '../types';
 import { BUNDESLAENDER } from '../constants';
+import { calculateTotalCost } from '../utils/calculations';
 
 /**
  * Sicherstellt, dass ein Wert eine gültige Zahl ist mit Minimum/Maximum-Grenzen
@@ -35,14 +36,14 @@ export function calculatePurchase(property: Property): PurchaseData {
   const maintenanceCost = ensureValidNumber(defaults.maintenanceCost, 0, purchasePrice, 35000);
   
   // Berechne Summe von Gebäude- und Grundstückswert
-  const immobileValue = landValue + buildingValue;
+  const immobileValue = landValue + buildingValue + maintenanceCost;
   
   // Prozentsätze berechnen
   const landValuePercentage = landValue > 0 ? (landValue / purchasePrice) * 100 : 15;
   const buildingValuePercentage = buildingValue > 0 ? (buildingValue / purchasePrice) * 100 : 80;
   
   // WICHTIGE ÄNDERUNG: Grunderwerbsteuer nur auf Gebäude + Grundstück berechnen
-  const grunderwerbsteuerBase = immobileValue;
+  const grunderwerbsteuerBase = immobileValue + maintenanceCost;
   const grunderwerbsteuer = grunderwerbsteuerBase * (grunderwerbsteuerRate / 100);
   
   // Notar- und Maklerkosten auf Gesamtkaufpreis
@@ -51,7 +52,7 @@ export function calculatePurchase(property: Property): PurchaseData {
   
   // Gesamte Nebenkosten
   const totalExtra = grunderwerbsteuer + notaryCosts + brokerFee;
-  const totalCost = purchasePrice + totalExtra;
+  const totalCost = calculateTotalCost(defaults.purchasePrice, defaults.bundesland, defaults.notaryRate, defaults.brokerRate)
   
   // Nebenkosten auf Grundstück und Gebäude aufteilen
   // Wenn Maklerkosten als Beratung zählen, diese von den Anschaffungskosten ausschließen
