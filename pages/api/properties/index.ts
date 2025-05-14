@@ -116,6 +116,12 @@ export default async function handler(
         yearlyData: null
       };
 
+      if (!taxInfo) {
+        return res.status(400).json({ 
+          message: 'Tax info not found for this customer. Please add tax information first.' 
+        });
+      }
+
       // Use calculation service for consistent calculations
       const { purchaseData, ongoingData, results: calculationResults, yearlyData } = 
         CalculationService.calculatePropertyData(propertyForCalculation, taxInfo);

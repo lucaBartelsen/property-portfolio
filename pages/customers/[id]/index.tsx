@@ -34,9 +34,9 @@ import { CustomerMapper } from '@/lib/dto/CustomerDto';
 interface Customer {
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  notes: string;
+  email: string | null;  // Allow email to be null
+  phone: string | null;  // Allow phone to be null
+  notes: string | null;  // Allow notes to be null
   taxInfo?: {
     id: string;
     annualIncome: number;
@@ -132,8 +132,9 @@ export default function CustomerDetail() {
       setCustomer(customerData);
       
       // Update tax info in the store if available
-      if (customerData.taxInfo) {
-        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: CustomerMapper.mapTaxInfo(customerData.taxInfo) });
+      const taxInfo = CustomerMapper.mapTaxInfo(customerData.taxInfo);
+      if (taxInfo) {
+        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo });
       }
       
       // Fetch portfolios for this customer

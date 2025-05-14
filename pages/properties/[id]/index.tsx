@@ -49,8 +49,8 @@ export default function PropertyDetailPage() {
       setProperty(propertyData);
       
       // If you need to fetch tax info, use CustomerApiService
-      if (propertyData?.portfolio?.customer?.id) {
-        const customerId = propertyData.portfolio.customer.id;
+      if (propertyData?.portfolio?.customerId) {
+        const customerId = propertyData.portfolio.customerId;
         const taxInfo = await CustomerApiService.getTaxInfo(customerId);
         if (taxInfo) {
           dispatch({ type: 'UPDATE_TAX_INFO', taxInfo });

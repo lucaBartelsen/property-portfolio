@@ -89,7 +89,11 @@ export default function PortfolioOverview() {
         const customer = await CustomerApiService.getCustomer(customerId as string);
         const portfolio = await PortfolioApiService.getPortfolio(portfolioId as string);
         
-        portfolio.customerName = customer.name;
+        const portfolioWithCustomerName = {
+          ...portfolio,
+          customerName: customer.name
+        };
+        allPortfolios = [portfolioWithCustomerName];
         allPortfolios = [portfolio];
         setSelectedPortfolio(portfolio.id);
       } else {
@@ -121,6 +125,19 @@ export default function PortfolioOverview() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetPortfolioStats = () => {
+    setPortfolioStats({
+      totalValue: 0,
+      totalEquity: 0,
+      totalDebt: 0,
+      avgCashflow: 0,
+      avgROI: 0,
+      propertyCount: 0,
+      cashflowPositive: 0,
+      cashflowNegative: 0
+    });
   };
   
   // Replace fetchProperties with:

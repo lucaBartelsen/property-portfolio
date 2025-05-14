@@ -22,6 +22,7 @@ import {
 import { calculateGermanIncomeTax, calculateTaxInfo } from '../../lib/calculators/taxCalculator';
 import { useCustomerForm } from '../../hooks/useCustomerForm';
 import { CustomerApiService, PortfolioApiService } from '../../services/apiService';
+import { CustomerCreateDto } from '@/lib/dto/CustomerDto';
 
 
 export default function NewCustomer() {
@@ -78,9 +79,20 @@ export default function NewCustomer() {
     try {
       // Get validated customer data
       const customerData = getCustomerData(data);
-      
-      // Step 1: Create the customer
-      const customer = await CustomerApiService.createCustomer(customerData);
+
+      const customerCreateDto: CustomerCreateDto = {
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        notes: customerData.notes
+      };
+
+      if (customerData.taxInfo) {
+        customerCreateDto.taxInfo = customerData.taxInfo;
+      }
+
+      // Now you can use customerCreateDto safely
+      const customer = await CustomerApiService.createCustomer(customerCreateDto);
       
       // Step 2: Automatically create a default portfolio for this customer
       try {

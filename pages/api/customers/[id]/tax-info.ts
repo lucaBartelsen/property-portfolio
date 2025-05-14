@@ -115,6 +115,10 @@ export default async function handler(
       // Normalize tax info
       const normalizedTaxInfo = DataValidator.normalizeTaxInfo(taxInfoData);
       
+      if (!normalizedTaxInfo) {
+        return res.status(400).json({ message: 'Invalid tax information provided' });
+      }
+
       // Update or create tax info (upsert)
       const taxInfo = await prisma.taxInfo.upsert({
         where: { customerId },
