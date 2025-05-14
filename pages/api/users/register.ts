@@ -1,7 +1,9 @@
-// pages/api/users/register.ts
+// pages/api/users/register.ts (updated)
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcrypt';
+import { authOptions } from '../auth/[...nextauth]';
 
 const prisma = new PrismaClient();
 
@@ -9,6 +11,22 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Überprüfen, ob der Benutzer authentifiziert und ein Admin ist
+  const session = await getServerSession(req, res, authOptions);
+  if (!session) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  
+  // Überprüfen, ob der Benutzer ein Administrator ist
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true }
+  });
+  
+  if (!user?.isAdmin) {
+    return res.status(403).json({ message: 'Forbidden - Admin access required' });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -32,7 +50,7 @@ export default async function handler(
     // Hash password
     const hashedPassword = await hash(password, 10);
 
-    // Create new user (without tax info since that's now per customer)
+    // Create new user
     const user = await prisma.user.create({
       data: {
         name,

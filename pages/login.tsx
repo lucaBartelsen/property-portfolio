@@ -1,8 +1,8 @@
-// pages/login.tsx
+// pages/login.tsx (updated)
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { signIn } from 'next-auth/react';
-import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Group, Anchor } from '@mantine/core';
+import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Group, Anchor, Alert } from '@mantine/core';
 
 export default function Login() {
   const router = useRouter();
@@ -10,6 +10,9 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Check if redirected from password reset
+  const { passwordReset } = router.query;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +42,14 @@ export default function Login() {
 
   return (
     <Container size={420} my={40}>
-      <Title align="center" mb={30}>Willkommen zurück!</Title>
+      <Title align="center" mb={30}>Willkommen!</Title>
+      
+      {passwordReset && (
+        <Alert color="green" mb="md">
+          Ihr Passwort wurde erfolgreich geändert. Sie können sich jetzt anmelden.
+        </Alert>
+      )}
+      
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
         <form onSubmit={handleSubmit}>
           <TextInput
@@ -58,17 +68,26 @@ export default function Login() {
             onChange={(e) => setPassword(e.currentTarget.value)}
             mb="md"
           />
+          
+          <Group position="right" mb="md">
+            <Anchor 
+              component="button" 
+              type="button" 
+              size="sm" 
+              onClick={() => router.push('/forgot-password')}
+            >
+              Passwort vergessen?
+            </Anchor>
+          </Group>
+          
           {error && <Text color="red" size="sm" mb="md">{error}</Text>}
           <Button fullWidth mt="xl" type="submit" loading={loading}>
             Anmelden
           </Button>
         </form>
-        <Text align="center" mt="md">
-          Noch kein Konto?{' '}
-          <Anchor component="button" onClick={() => router.push('/register')}>
-            Registrieren
-          </Anchor>
-        </Text>
+        
+        {/* Registrierungslink entfernt */}
+        
       </Paper>
     </Container>
   );

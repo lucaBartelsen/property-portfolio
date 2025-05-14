@@ -1,4 +1,4 @@
-// pages/dashboard.tsx
+// pages/dashboard.tsx (updated)
 import { useEffect, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     // Redirect if not authenticated
@@ -45,8 +46,22 @@ export default function Dashboard() {
     // Fetch customers if authenticated
     if (status === 'authenticated') {
       fetchCustomers();
+      checkIfAdmin();
     }
   }, [status, router]);
+
+  const checkIfAdmin = async () => {
+    try {
+      // Check if the user has admin privileges
+      const response = await fetch('/api/admin/users');
+      if (response.ok) {
+        setIsAdmin(true);
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -124,10 +139,11 @@ export default function Dashboard() {
       setIsSubmitting(false);
     }
   };
+  
   if (status === 'loading' || loading) {
     return (
       <Box>
-        <DashboardHeader session={session} onLogout={handleLogout} onPasswordChange={openPasswordModal} />
+        <DashboardHeader session={session} onLogout={handleLogout} onPasswordChange={openPasswordModal} isAdmin={isAdmin} />
         <Container size="xl" py="xl" style={{ textAlign: 'center' }}>
           <Loader size="xl" />
         </Container>
@@ -137,7 +153,7 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <DashboardHeader session={session} onLogout={handleLogout} onPasswordChange={openPasswordModal} />
+      <DashboardHeader session={session} onLogout={handleLogout} onPasswordChange={openPasswordModal} isAdmin={isAdmin} />
       
       <Container size="xl" py="xl">
         <Group position="apart" mb="xl">
@@ -170,6 +186,24 @@ export default function Dashboard() {
               </Card>
             ))}
           </SimpleGrid>
+        )}
+        
+        {isAdmin && (
+          <>
+            <Divider my="xl" />
+            <Title order={2} mb="md">Administrator-Funktionen</Title>
+            <SimpleGrid cols={2} spacing="lg" breakpoints={[
+              { maxWidth: 800, cols: 1, spacing: 'md' },
+            ]}>
+              <Card withBorder shadow="sm" p="lg">
+                <Title order={3}>Benutzerverwaltung</Title>
+                <Text mb="md">Benutzer erstellen, bearbeiten oder löschen.</Text>
+                <Button fullWidth onClick={() => router.push('/admin/users')}>
+                  Zur Benutzerverwaltung
+                </Button>
+              </Card>
+            </SimpleGrid>
+          </>
         )}
       </Container>
 
@@ -232,11 +266,14 @@ export default function Dashboard() {
 }
 
 // Header Component
-function DashboardHeader({ session, onLogout, onPasswordChange }: { 
+function DashboardHeader({ session, onLogout, onPasswordChange, isAdmin }: { 
   session: any;
   onLogout: () => void;
   onPasswordChange: () => void;
+  isAdmin: boolean;
 }) {
+  const router = useRouter();
+  
   return (
     <Header height={70} p="md">
       <Container size="xl">
@@ -266,6 +303,19 @@ function DashboardHeader({ session, onLogout, onPasswordChange }: {
               </Menu.Target>
               
               <Menu.Dropdown>
+                <Menu.Label>Navigation</Menu.Label>
+                <Menu.Item onClick={() => router.push('/dashboard')}>
+                  Dashboard
+                </Menu.Item>
+                
+                {isAdmin && (
+                  <Menu.Item onClick={() => router.push('/admin/users')}>
+                    Benutzerverwaltung
+                  </Menu.Item>
+                )}
+                
+                <Menu.Divider />
+                
                 <Menu.Label>Einstellungen</Menu.Label>
                 <Menu.Item onClick={onPasswordChange}>
                   Passwort ändern
