@@ -195,16 +195,6 @@ export function calculateCashflow(
 
     const totalCost = calculateTotalCost(property.defaults.purchasePrice, property.defaults.bundesland, property.defaults.notaryRate, property.defaults.brokerRate)
     
-    if (financingType === 'loan') {
-      loanAmount = ensureValidNumber(totalCost - downPayment, 0, 1e9);
-      // Annuität berechnen, mit Schutz gegen Division durch Null
-      if (interestRate + repaymentRate > 0) {
-        annuity = loanAmount * (interestRate + repaymentRate);
-      } else {
-        annuity = 0;
-      }
-    }
-    
     // Berechnung für das erste Jahr
     let yearlyInterest = financingCosts.totalInitialInterest;
     let yearlyPrincipal = financingCosts.totalInitialPrincipal;
