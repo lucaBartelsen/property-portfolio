@@ -4,6 +4,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]';
+import { TaxInfoDto } from '../../../../lib/dto/CustomerDto';
+import { DataValidator } from '../../../../lib/utils/validation';
 
 const prisma = new PrismaClient();
 
@@ -95,37 +97,41 @@ export default async function handler(
   
   // PUT - Update tax info for a customer
   if (req.method === 'PUT') {
-    const { annualIncome, taxStatus, hasChurchTax, churchTaxRate, taxRate } = req.body;
+    const taxInfoData = req.body;
     
-    if (annualIncome === undefined || !taxStatus || taxRate === undefined) {
+    // Validate input
+    if (taxInfoData.annualIncome === undefined || !taxInfoData.taxStatus || taxInfoData.taxRate === undefined) {
       return res.status(400).json({ message: 'Annual income, tax status, and tax rate are required' });
     }
     
     // Validate tax status
-    if (taxStatus !== 'single' && taxStatus !== 'married') {
+    if (taxInfoData.taxStatus !== 'single' && taxInfoData.taxStatus !== 'married') {
       return res.status(400).json({ 
         message: 'Tax status must be either "single" or "married"' 
       });
     }
     
     try {
+      // Normalize tax info
+      const normalizedTaxInfo = DataValidator.normalizeTaxInfo(taxInfoData);
+      
       // Update or create tax info (upsert)
       const taxInfo = await prisma.taxInfo.upsert({
         where: { customerId },
         update: {
-          annualIncome,
-          taxStatus: taxStatus as 'single' | 'married', // Use the enum type here
-          hasChurchTax: hasChurchTax || false,
-          churchTaxRate: churchTaxRate || 9,
-          taxRate
+          annualIncome: normalizedTaxInfo.annualIncome,
+          taxStatus: normalizedTaxInfo.taxStatus,
+          hasChurchTax: normalizedTaxInfo.hasChurchTax,
+          churchTaxRate: normalizedTaxInfo.churchTaxRate,
+          taxRate: normalizedTaxInfo.taxRate
         },
         create: {
           customerId,
-          annualIncome,
-          taxStatus: taxStatus as 'single' | 'married',  // Use the enum type here
-          hasChurchTax: hasChurchTax || false,
-          churchTaxRate: churchTaxRate || 9,
-          taxRate
+          annualIncome: normalizedTaxInfo.annualIncome,
+          taxStatus: normalizedTaxInfo.taxStatus,
+          hasChurchTax: normalizedTaxInfo.hasChurchTax,
+          churchTaxRate: normalizedTaxInfo.churchTaxRate,
+          taxRate: normalizedTaxInfo.taxRate
         }
       });
       

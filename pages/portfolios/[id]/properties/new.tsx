@@ -14,6 +14,7 @@ import {
 import PropertyForm from '../../../../components/PropertyForm';
 import { createNewProperty } from '../../../../store/PropertyContext';
 import { Property } from '../../../../lib/types';
+import { PropertyApiService, PortfolioApiService } from '../../../../services/apiService';
 
 export default function NewProperty() {
   const router = useRouter();
@@ -38,14 +39,11 @@ export default function NewProperty() {
   const fetchPortfolio = async () => {
     try {
       // Fetch portfolio data to verify it exists and get customer info
-      const response = await fetch(`/api/portfolios/${portfolioId}`);
-      if (!response.ok) throw new Error('Failed to fetch portfolio');
-      
-      const portfolioData = await response.json();
+      const portfolioData = await PortfolioApiService.getPortfolio(portfolioId as string);
       setPortfolio(portfolioData);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching portfolio:', error);
-      setError(error.message || 'Failed to load portfolio');
+      setError(error instanceof Error ? error.message : 'Failed to load portfolio');
     } finally {
       setLoading(false);
     }
@@ -54,26 +52,8 @@ export default function NewProperty() {
   const handleSaveProperty = async (property: Property) => {
     setLoading(true);
     try {
-      // Prepare property data for saving
-      const propertyData = {
-        name: property.name,
-        portfolioId: portfolioId as string,
-        defaults: property.defaults
-      };
-      
-      // Save property
-      const response = await fetch('/api/properties', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(propertyData),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to create property');
-      }
+      // Use API service to create property
+      await PropertyApiService.createProperty(property, portfolioId as string);
       
       // Get customer ID from portfolio
       const customerId = portfolio?.customerId;
@@ -84,9 +64,9 @@ export default function NewProperty() {
       } else {
         router.push('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving property:', error);
-      setError(error.message || 'An error occurred while saving the property');
+      setError(error instanceof Error ? error.message : 'Failed to create property');
       setLoading(false);
     }
   };

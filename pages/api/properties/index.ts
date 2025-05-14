@@ -4,7 +4,10 @@ import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]';
 import { TaxInfo } from '../../../lib/types';
-import { CalculationService } from '@/services/calculationService';
+import { PropertyCreateDto } from '../../../lib/dto/PropertyDto';
+import { CustomerMapper } from '../../../lib/dto/CustomerDto';
+import { DataValidator } from '../../../lib/utils/validation';
+import { CalculationService } from '../../../services/calculationService';
 
 const prisma = new PrismaClient();
 
@@ -56,115 +59,89 @@ export default async function handler(
   }
   
   // POST - Create a new property
+// Replace POST handler with:
   if (req.method === 'POST') {
-  const { name, portfolioId, defaults } = req.body;
-  
-  if (!name || !portfolioId || !defaults) {
-    return res.status(400).json({ message: 'Name, portfolio ID, and defaults are required' });
-  }
-  
-  try {
-    // First verify that the portfolio belongs to the user and get the customer
-    const portfolio = await prisma.portfolio.findFirst({
-      where: { 
-        id: portfolioId,
-        customer: {
-          userId
-        }
-      },
-      include: {
-        customer: {
-          include: {
-            taxInfo: true
+    const propertyDto = req.body as PropertyCreateDto;
+    
+    // Basic validation
+    if (!propertyDto.name || !propertyDto.portfolioId || !propertyDto.defaults) {
+      return res.status(400).json({ message: 'Name, portfolio ID, and defaults are required' });
+    }
+    
+    try {
+      // Normalize and validate property defaults
+      const normalizedDefaults = DataValidator.normalizePropertyDefaults(propertyDto.defaults);
+      
+      // Verify portfolio exists and belongs to user
+      const portfolio = await prisma.portfolio.findFirst({
+        where: { 
+          id: propertyDto.portfolioId,
+          customer: {
+            userId
+          }
+        },
+        include: {
+          customer: {
+            include: {
+              taxInfo: true
+            }
           }
         }
+      });
+      
+      if (!portfolio) {
+        return res.status(404).json({ message: 'Portfolio not found' });
       }
-    });
-    
-    if (!portfolio) {
-      return res.status(404).json({ message: 'Portfolio not found' });
-    }
-    
-    // Get tax info from the customer
-    const dbTaxInfo = portfolio.customer.taxInfo;
+      
+      // Get tax info from the customer
+      const dbTaxInfo = portfolio.customer.taxInfo;
 
-    if (!dbTaxInfo) {
-      return res.status(404).json({ 
-        message: 'Tax info not found for this customer. Please add tax information first.' 
+      if (!dbTaxInfo) {
+        return res.status(404).json({ 
+          message: 'Tax info not found for this customer. Please add tax information first.' 
+        });
+      }
+
+      // Convert database tax info to application TaxInfo type
+      const taxInfo = CustomerMapper.mapTaxInfo(dbTaxInfo);
+
+      // Create a property object for calculations
+      const propertyForCalculation = {
+        id: 'temp-id',
+        name: propertyDto.name,
+        defaults: normalizedDefaults,
+        purchaseData: null,
+        ongoingData: null,
+        calculationResults: null,
+        yearlyData: null
+      };
+
+      // Use calculation service for consistent calculations
+      const { purchaseData, ongoingData, results: calculationResults, yearlyData } = 
+        CalculationService.calculatePropertyData(propertyForCalculation, taxInfo);
+      
+      // Save the property with calculated data
+      const savedProperty = await prisma.property.create({
+        data: {
+          name: propertyDto.name,
+          portfolioId: propertyDto.portfolioId,
+          defaults: normalizedDefaults as any,
+          purchaseData: purchaseData as any,
+          ongoingData: ongoingData as any,
+          calculationResults: calculationResults as any,
+          yearlyData: yearlyData as any
+        }
+      });
+      
+      return res.status(201).json(savedProperty);
+    } catch (error: any) {
+      console.error('Error creating property:', error);
+      return res.status(500).json({ 
+        message: 'Failed to create property', 
+        error: error?.message || 'Unknown error'
       });
     }
-
-    // Convert database tax info to your application's TaxInfo type
-    const taxInfo: TaxInfo = {
-      annualIncome: dbTaxInfo.annualIncome,
-      taxStatus: dbTaxInfo.taxStatus as 'single' | 'married',
-      hasChurchTax: dbTaxInfo.hasChurchTax,
-      churchTaxRate: dbTaxInfo.churchTaxRate,
-      taxRate: dbTaxInfo.taxRate
-    };
-
-    // Create property with properly defined defaults
-    // Ensure all defaults are defined correctly with correct data types
-    const propertyData = {
-      id: 'temp-id',
-      name,
-      defaults: {
-        ...defaults,
-        // Ensure number types for critical fields
-        purchasePrice: Number(defaults.purchasePrice),
-        notaryRate: Number(defaults.notaryRate),
-        brokerRate: Number(defaults.brokerRate),
-        depreciationRate: Number(defaults.depreciationRate),
-        landValue: Number(defaults.landValue),
-        buildingValue: Number(defaults.buildingValue),
-        maintenanceCost: Number(defaults.maintenanceCost),
-        furnitureValue: Number(defaults.furnitureValue),
-        maintenanceDistribution: Number(defaults.maintenanceDistribution),
-        downPayment: Number(defaults.downPayment),
-        interestRate: Number(defaults.interestRate),
-        repaymentRate: Number(defaults.repaymentRate),
-        monthlyRent: Number(defaults.monthlyRent),
-        vacancyRate: Number(defaults.vacancyRate),
-        propertyTax: Number(defaults.propertyTax),
-        managementFee: Number(defaults.managementFee),
-        maintenanceReserve: Number(defaults.maintenanceReserve),
-        insurance: Number(defaults.insurance),
-        appreciationRate: Number(defaults.appreciationRate),
-        rentIncreaseRate: Number(defaults.rentIncreaseRate)
-      },
-      purchaseData: null,
-      ongoingData: null,
-      calculationResults: null,
-      yearlyData: null
-    };
-    
-    const { purchaseData, ongoingData, results: calculationResults, yearlyData } = CalculationService.calculatePropertyData(
-      propertyData, 
-      taxInfo
-    );
-    
-    // Save the property with calculated data
-    const savedProperty = await prisma.property.create({
-      data: {
-        name,
-        portfolioId,
-        defaults: defaults as any,
-        purchaseData: purchaseData as any,
-        ongoingData: ongoingData as any,
-        calculationResults: calculationResults as any,
-        yearlyData: yearlyData as any
-      }
-    });
-    
-    return res.status(201).json(savedProperty);
-  } catch (error: any) {
-        console.error('Error creating property:', error);
-        return res.status(500).json({ 
-            message: 'Failed to create property', 
-            error: error?.message || 'Unknown error'
-        });
-    }
-}
+  }
   
   return res.status(405).json({ message: 'Method not allowed' });
 }

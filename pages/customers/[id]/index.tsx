@@ -28,6 +28,8 @@ import { useForm } from 'react-hook-form';
 import { formatCurrency } from '../../../lib/utils/formatters';
 import { calculateTaxInfo } from '../../../lib/calculators/taxCalculator';
 import { usePropertyStore } from '@/store/PropertyContext';
+import { CustomerApiService, PortfolioApiService, PropertyApiService } from '../../../services/apiService';
+import { CustomerMapper } from '@/lib/dto/CustomerDto';
 
 interface Customer {
   id: string;
@@ -125,28 +127,17 @@ export default function CustomerDetail() {
   const fetchCustomerData = async () => {
     setLoading(true);
     try {
-        // Fetch customer data
-        const customerResponse = await fetch(`/api/customers/${id}`);
-        if (!customerResponse.ok) throw new Error('Failed to fetch customer');
-        const customerData = await customerResponse.json();
-        setCustomer(customerData);
-        
-        // Update tax info in the store if available
-        if (customerData.taxInfo) {
-        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
-            annualIncome: customerData.taxInfo.annualIncome,
-            taxStatus: customerData.taxInfo.taxStatus,
-            hasChurchTax: customerData.taxInfo.hasChurchTax,
-            churchTaxRate: customerData.taxInfo.churchTaxRate,
-            taxRate: customerData.taxInfo.taxRate
-        }});
-        
-        }
+      // Fetch customer data
+      const customerData = await CustomerApiService.getCustomer(id as string);
+      setCustomer(customerData);
+      
+      // Update tax info in the store if available
+      if (customerData.taxInfo) {
+        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: CustomerMapper.mapTaxInfo(customerData.taxInfo) });
+      }
       
       // Fetch portfolios for this customer
-      const portfoliosResponse = await fetch(`/api/portfolios?customerId=${id}`);
-      if (!portfoliosResponse.ok) throw new Error('Failed to fetch portfolios');
-      const portfoliosData = await portfoliosResponse.json();
+      const portfoliosData = await PortfolioApiService.getPortfoliosByCustomer(id as string);
       
       // Get the first (and likely only) portfolio
       if (portfoliosData.length > 0) {
@@ -154,15 +145,16 @@ export default function CustomerDetail() {
         setPortfolio(firstPortfolio);
         
         // Fetch properties for this portfolio
-        const propertiesResponse = await fetch(`/api/properties?portfolioId=${firstPortfolio.id}`);
-        if (propertiesResponse.ok) {
-          const propertiesData = await propertiesResponse.json();
+        try {
+          const propertiesData = await PropertyApiService.getPropertiesByPortfolio(firstPortfolio.id);
           setProperties(propertiesData);
+        } catch (propertiesError) {
+          console.error('Error fetching properties:', propertiesError);
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching data:', error);
-      setError(error.message || 'An error occurred');
+      setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -191,96 +183,53 @@ export default function CustomerDetail() {
   const handleDeleteCustomer = async () => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/customers/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete customer');
-      }
-      
-      // Redirect to dashboard after successful deletion
+      await CustomerApiService.deleteCustomer(id as string);
       router.push('/dashboard');
-    } catch (error: any) {
-      setError(error.message || 'An error occurred while deleting the customer');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred while deleting the customer');
     } finally {
       setIsSubmitting(false);
       setDeleteModalOpen(false);
     }
   };
   
+  // Replace handleUpdateCustomer with:
   const handleUpdateCustomer = async (data: any) => {
-  setIsSubmitting(true);
-  try {
-    // Calculate tax info
-    const taxInfoData = calculateTaxInfo({
-      annualIncome: data.annualIncome,
-      taxStatus: data.taxStatus as 'single' | 'married',
-      hasChurchTax: data.hasChurchTax,
-      churchTaxRate: data.churchTaxRate,
-      taxRate: data.taxRate
-    });
-    
-    // First update the customer
-    const customerResponse = await fetch(`/api/customers/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            notes: data.notes
-        }),
-        });
-        
-        if (!customerResponse.ok) {
-        throw new Error('Failed to update customer');
-        }
-        
-        // Then update tax info
-        if (customer?.taxInfo?.id) {
-        // Update existing tax info
-        const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
-            method: 'PUT',
-            headers: {
-            'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(taxInfoData),
-        });
-        
-        if (!taxResponse.ok) {
-            throw new Error('Failed to update tax information');
-        }
-        } else {
-        // Create new tax info
-        const taxResponse = await fetch(`/api/customers/${id}/tax-info`, {
-            method: 'POST',
-            headers: {
-            'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(taxInfoData),
-        });
-        
-        if (!taxResponse.ok) {
-            throw new Error('Failed to create tax information');
-        }
-        }
-        
-        // IMPORTANT: Update the tax info in our local store as well
-        // This ensures components relying on this data will re-render
-        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: taxInfoData });
-        
-        // Refresh the data
-        await fetchCustomerData();
-        setEditModalOpen(false);
-    } catch (error: any) {
-        setError(error.message || 'An error occurred while updating the customer');
+    setIsSubmitting(true);
+    try {
+      // Update basic customer information
+      const customerData = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        notes: data.notes
+      };
+      
+      await CustomerApiService.updateCustomer(id as string, customerData);
+      
+      // Update tax info if it exists
+      const taxInfo = {
+        annualIncome: data.annualIncome,
+        taxStatus: data.taxStatus,
+        hasChurchTax: data.hasChurchTax,
+        churchTaxRate: data.churchTaxRate,
+        taxRate: data.taxRate
+      };
+      
+      await CustomerApiService.updateTaxInfo(id as string, taxInfo);
+      
+      // Update the tax info in the store
+      dispatch({ type: 'UPDATE_TAX_INFO', taxInfo });
+      
+      // Refresh the data
+      await fetchCustomerData();
+      setEditModalOpen(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred while updating the customer');
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
-    };
+  };
   
   if (status === 'loading' || loading) {
     return (

@@ -27,11 +27,6 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
   const ongoingData = property.ongoingData;
   const results = property.calculationResults;
   
-  const handleEditProperty = () => {
-    // Navigate to the edit page
-    router.push(`/properties/${property.id}/edit`);
-  };
-  
   if (!purchaseData || !ongoingData || !results) {
     return (
       <Card p="md" withBorder>

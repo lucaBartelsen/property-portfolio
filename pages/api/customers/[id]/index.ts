@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]';
+import { CustomerUpdateDto } from '../../../../lib/dto/CustomerDto';
 
 const prisma = new PrismaClient();
 
@@ -45,9 +46,9 @@ export default async function handler(
   
   // PUT - Update a customer
   if (req.method === 'PUT') {
-    const { name, email, phone, notes } = req.body;
+    const customerDto = req.body as CustomerUpdateDto;
     
-    if (!name) {
+    if (!customerDto.name) {
       return res.status(400).json({ message: 'Name is required' });
     }
     
@@ -57,10 +58,10 @@ export default async function handler(
           id: customerId
         },
         data: {
-          name,
-          email,
-          phone,
-          notes
+          name: customerDto.name,
+          email: customerDto.email || null,
+          phone: customerDto.phone || null,
+          notes: customerDto.notes || null
         },
         include: {
           taxInfo: true

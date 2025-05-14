@@ -17,6 +17,7 @@ import CashflowChart from '../../../components/CashflowChart';
 import YearTable from '../../../components/YearTable';
 import { Property } from '../../../lib/types';
 import { usePropertyStore } from '@/store/PropertyContext';
+import { CustomerApiService, PropertyApiService } from '@/services/apiService';
 
 export default function PropertyDetailPage() {
 
@@ -42,58 +43,37 @@ export default function PropertyDetailPage() {
   }, [status, id]);
   
   const fetchPropertyData = async () => {
-  setLoading(true);
-  try {
-    // Fetch property data
-    const response = await fetch(`/api/properties/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch property');
-    
-    const data = await response.json();
-    setProperty(data);
-
-    // Now also fetch the tax info for this property's customer
-    // The property should include the portfolio and customer reference
-    if (data.portfolio?.customer?.id) {
-      const customerId = data.portfolio.customer.id;
-      const taxResponse = await fetch(`/api/customers/${customerId}/tax-info`);
+    try {
+      setLoading(true);
+      const propertyData = await PropertyApiService.getProperty(id as string);
+      setProperty(propertyData);
       
-      if (taxResponse.ok) {
-        const taxInfo = await taxResponse.json();
-        // Update the tax info in the global store
-        dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
-          annualIncome: taxInfo.annualIncome,
-          taxStatus: taxInfo.taxStatus,
-          hasChurchTax: taxInfo.hasChurchTax,
-          churchTaxRate: taxInfo.churchTaxRate,
-          taxRate: taxInfo.taxRate
-        }});
-        
+      // If you need to fetch tax info, use CustomerApiService
+      if (propertyData?.portfolio?.customer?.id) {
+        const customerId = propertyData.portfolio.customer.id;
+        const taxInfo = await CustomerApiService.getTaxInfo(customerId);
+        if (taxInfo) {
+          dispatch({ type: 'UPDATE_TAX_INFO', taxInfo });
+        }
       }
+    } catch (error) {
+      console.error('Error fetching property:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch property');
+    } finally {
+      setLoading(false);
     }
-  } catch (error: any) {
-    console.error('Error fetching property:', error);
-    setError(error.message || 'An error occurred');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
   
   const handleDeleteProperty = async () => {
     if (!property) return;
     
-    if (!confirm('Sind Sie sicher, dass Sie diese Immobilie löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+    if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
       return;
     }
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/properties/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete property');
-      }
+      await PropertyApiService.deleteProperty(id as string);
       
       // Navigate back to the customer page
       const portfolio = property.portfolio;
@@ -102,8 +82,9 @@ export default function PropertyDetailPage() {
       } else {
         router.push('/dashboard');
       }
-    } catch (error: any) {
-      setError(error.message || 'An error occurred while deleting the property');
+    } catch (error) {
+      console.error('Error deleting property:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete property');
       setLoading(false);
     }
   };

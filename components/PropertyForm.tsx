@@ -1,6 +1,5 @@
 // components/PropertyForm.tsx (refactored)
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import {
   TextInput,
   Button,
@@ -11,14 +10,13 @@ import {
   Checkbox
 } from '@mantine/core';
 import { Property, PropertyDefaults } from '../lib/types';
-import { createNewProperty } from '../store/PropertyContext';
-import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_PROPERTY_VALUES } from '../lib/constants';
 import { PropertyBasicInfo } from './property/PropertyBasicInfo';
 import { PropertyPurchaseInfo } from './property/PropertyPurchaseInfo';
 import { PropertyFinancing } from './property/PropertyFinancing';
 import { PropertyOngoingCosts } from './property/PropertyOngoingCosts';
 import { PropertyAppreciation } from './property/PropertyAppreciation';
+import { usePropertyForm } from '../hooks/usePropertyValidation';
 
 interface PropertyFormProps {
   property?: Property;
@@ -46,7 +44,15 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   };
 
   // Initialize form with property data or defaults
-  const { register, handleSubmit, watch, setValue, control, formState: { errors }, reset } = useForm<PropertyDefaults & { name: string }>();
+  const { 
+    reset,
+    register, 
+    handleSubmit, 
+    watch, 
+    setValue, 
+    formState: { errors },
+    getValidatedProperty
+  } = usePropertyForm(property);
   
   // Effect to set form values when property changes or on component mount
   useEffect(() => {
@@ -101,70 +107,16 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
     }
   }, [property, reset]);
 
-  const onSubmit = (data: PropertyDefaults & { name: string }) => {
-    const { name, ...formDefaults } = data;
+  const onSubmit = (data: any) => {
+  // Get validated property with all conversions applied
+    const validatedProperty = getValidatedProperty(data);
     
-    // Prepare defaults with proper number conversions
-    const defaults = {
-      ...formDefaults,
-      purchasePrice: ensureNumber(formDefaults.purchasePrice),
-      notaryRate: ensureNumber(formDefaults.notaryRate),
-      brokerRate: ensureNumber(formDefaults.brokerRate),
-      depreciationRate: ensureNumber(formDefaults.depreciationRate),
-      landValue: ensureNumber(formDefaults.landValue),
-      buildingValue: ensureNumber(formDefaults.buildingValue),
-      maintenanceCost: ensureNumber(formDefaults.maintenanceCost),
-      furnitureValue: ensureNumber(formDefaults.furnitureValue),
-      maintenanceDistribution: ensureNumber(formDefaults.maintenanceDistribution),
-      
-      // Financing values
-      downPayment: ensureNumber(formDefaults.downPayment),
-      loanAmount: ensureNumber(formDefaults.loanAmount1), // For compatibility
-      interestRate: ensureNumber(formDefaults.interestRate1), // For compatibility
-      repaymentRate: ensureNumber(formDefaults.repaymentRate1), // For compatibility
-      
-      // Extended financing
-      loanAmount1: ensureNumber(formDefaults.loanAmount1),
-      interestRate1: ensureNumber(formDefaults.interestRate1),
-      repaymentRate1: ensureNumber(formDefaults.repaymentRate1),
-      useSecondLoan,
-      loanAmount2: useSecondLoan ? ensureNumber(formDefaults.loanAmount2) : 0,
-      interestRate2: useSecondLoan ? ensureNumber(formDefaults.interestRate2) : 0,
-      repaymentRate2: useSecondLoan ? ensureNumber(formDefaults.repaymentRate2) : 0,
-      
-      // Ongoing costs
-      monthlyRent: ensureNumber(formDefaults.monthlyRent),
-      vacancyRate: ensureNumber(formDefaults.vacancyRate),
-      propertyTax: ensureNumber(formDefaults.propertyTax),
-      managementFee: ensureNumber(formDefaults.managementFee),
-      maintenanceReserve: ensureNumber(formDefaults.maintenanceReserve),
-      insurance: ensureNumber(formDefaults.insurance),
-      appreciationRate: ensureNumber(formDefaults.appreciationRate),
-      rentIncreaseRate: ensureNumber(formDefaults.rentIncreaseRate),
-      financingType,
-    };
+    // Update financing options from component state
+    validatedProperty.defaults.financingType = financingType;
+    validatedProperty.defaults.useSecondLoan = useSecondLoan;
     
-    if (isEditing && property) {
-      // Update existing property
-      const updatedProperty: Property = {
-        ...property,
-        name,
-        defaults,
-      };
-      onSave(updatedProperty);
-    } else {
-      // Create new property
-      const newProperty: Property = {
-        id: uuidv4(),
-        name,
-        purchaseData: null,
-        ongoingData: null,
-        calculationResults: null,
-        yearlyData: null,
-        defaults,
-      };
-      onSave(newProperty);
-    }
+    // Save the property
+    onSave(validatedProperty);
   };
 
   return (

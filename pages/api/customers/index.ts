@@ -3,6 +3,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]';
+import { CustomerCreateDto } from '../../../lib/dto/CustomerDto';
+import { DataValidator } from '../../../lib/utils/validation';
 
 const prisma = new PrismaClient();
 
@@ -35,15 +37,15 @@ export default async function handler(
   
   // POST - Create a new customer
   if (req.method === 'POST') {
-  const { name, email, phone, notes, taxInfo } = req.body;
+  const customerDto = req.body as CustomerCreateDto;
   
-  if (!name) {
+  if (!customerDto.name) {
     return res.status(400).json({ message: 'Name is required' });
   }
   
   // Validate tax status if provided
-  if (taxInfo && taxInfo.taxStatus) {
-    if (taxInfo.taxStatus !== 'single' && taxInfo.taxStatus !== 'married') {
+  if (customerDto.taxInfo && customerDto.taxInfo.taxStatus) {
+    if (customerDto.taxInfo.taxStatus !== 'single' && customerDto.taxInfo.taxStatus !== 'married') {
       return res.status(400).json({ 
         message: 'Tax status must be either "single" or "married"' 
       });
@@ -51,12 +53,18 @@ export default async function handler(
   }
   
   try {
-    // Create the customer, optionally with tax info
+    // Normalize tax info if provided
+    let taxInfo = null;
+    if (customerDto.taxInfo) {
+      taxInfo = DataValidator.normalizeTaxInfo(customerDto.taxInfo);
+    }
+    
+    // Prepare customer data
     const customerData: any = {
-      name,
-      email,
-      phone,
-      notes,
+      name: customerDto.name,
+      email: customerDto.email || null,
+      phone: customerDto.phone || null,
+      notes: customerDto.notes || null,
       userId
     };
     
@@ -65,14 +73,15 @@ export default async function handler(
       customerData.taxInfo = {
         create: {
           annualIncome: taxInfo.annualIncome,
-          taxStatus: taxInfo.taxStatus as 'single' | 'married',  // Use the enum type here
-          hasChurchTax: taxInfo.hasChurchTax || false,
-          churchTaxRate: taxInfo.churchTaxRate || 9,
+          taxStatus: taxInfo.taxStatus,
+          hasChurchTax: taxInfo.hasChurchTax,
+          churchTaxRate: taxInfo.churchTaxRate,
           taxRate: taxInfo.taxRate
         }
       };
     }
     
+    // Create the customer
     const customer = await prisma.customer.create({
       data: customerData,
       include: {

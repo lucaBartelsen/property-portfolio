@@ -19,8 +19,10 @@ import {
   Radio,
   LoadingOverlay
 } from '@mantine/core';
-import { useForm } from 'react-hook-form';
 import { calculateGermanIncomeTax, calculateTaxInfo } from '../../lib/calculators/taxCalculator';
+import { useCustomerForm } from '../../hooks/useCustomerForm';
+import { CustomerApiService, PortfolioApiService } from '../../services/apiService';
+
 
 export default function NewCustomer() {
   const router = useRouter();
@@ -35,20 +37,14 @@ export default function NewCustomer() {
   const [error, setError] = useState('');
   
   // Form setup using react-hook-form
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-    defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      notes: '',
-      // Tax info
-      annualIncome: 70000,
-      taxStatus: 'single',
-      hasChurchTax: false,
-      churchTaxRate: 9,
-      taxRate: 0 // Will be calculated
-    }
-  });
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+    getCustomerData
+  } = useCustomerForm();
   
   // Watch values for conditional rendering and calculations
   const hasChurchTax = watch('hasChurchTax');
@@ -80,64 +76,27 @@ export default function NewCustomer() {
     setError('');
     
     try {
-      // Use your calculateTaxInfo function to get complete tax info
-      const taxInfoData = calculateTaxInfo({
-        annualIncome: data.annualIncome,
-        taxStatus: data.taxStatus as 'single' | 'married',
-        hasChurchTax: data.hasChurchTax,
-        churchTaxRate: data.churchTaxRate,
-        taxRate: data.taxRate
-      });
-      
-      const customerData = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        notes: data.notes,
-        taxInfo: taxInfoData
-      };
+      // Get validated customer data
+      const customerData = getCustomerData(data);
       
       // Step 1: Create the customer
-      const response = await fetch('/api/customers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(customerData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create customer');
-      }
-      
-      const customer = await response.json();
+      const customer = await CustomerApiService.createCustomer(customerData);
       
       // Step 2: Automatically create a default portfolio for this customer
-      const portfolioResponse = await fetch('/api/portfolios', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      try {
+        await PortfolioApiService.createPortfolio({
           name: `Portfolio von ${data.name}`,
           customerId: customer.id
-        }),
-      });
-      
-      if (!portfolioResponse.ok) {
+        });
+      } catch (portfolioError) {
         // If portfolio creation fails, we can still proceed with the customer
         console.warn('Failed to create default portfolio');
-      } else {
-        // Get the portfolio data if successful
-        const portfolio = await portfolioResponse.json();
-        console.log('Created portfolio:', portfolio);
       }
       
       // Redirect to the customer detail page
       router.push(`/customers/${customer.id}`);
-    } catch (error: any) {
-      setError(error.message || 'An error occurred');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setLoading(false);
     }

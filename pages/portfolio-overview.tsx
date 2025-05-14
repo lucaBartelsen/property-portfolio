@@ -13,6 +13,8 @@ import { PortfolioCharts } from '../components/charts/PortfolioCharts';
 import { usePropertyStore } from '../store/PropertyContext';
 import { CalculationService } from '../services/calculationService';
 import { Property, Portfolio, PortfolioStats } from '../lib/types';
+import { CustomerApiService, PortfolioApiService, PropertyApiService } from '../services/apiService';
+import { DataValidator } from '../lib/utils/validation';
 
 export default function PortfolioOverview() {
   const router = useRouter();
@@ -76,6 +78,7 @@ export default function PortfolioOverview() {
     }
   }, [properties, dispatch]);
   
+  // Replace fetchPortfolios with:
   const fetchPortfolios = async () => {
     setLoading(true);
     try {
@@ -83,34 +86,25 @@ export default function PortfolioOverview() {
       
       // Handle specific portfolio or fetch all
       if (customerId && portfolioId) {
-        // Fetch customer info
-        const customerResponse = await fetch(`/api/customers/${customerId}`);
-        if (!customerResponse.ok) throw new Error('Failed to fetch customer');
-        const customer = await customerResponse.json();
-        
-        // Fetch specific portfolio
-        const portfolioResponse = await fetch(`/api/portfolios/${portfolioId}`);
-        if (!portfolioResponse.ok) throw new Error('Failed to fetch portfolio');
-        const portfolio = await portfolioResponse.json();
+        const customer = await CustomerApiService.getCustomer(customerId as string);
+        const portfolio = await PortfolioApiService.getPortfolio(portfolioId as string);
         
         portfolio.customerName = customer.name;
         allPortfolios = [portfolio];
         setSelectedPortfolio(portfolio.id);
       } else {
-        // Fetch all portfolios for all customers
-        const customersResponse = await fetch('/api/customers');
-        if (!customersResponse.ok) throw new Error('Failed to fetch customers');
-        
-        const customers = await customersResponse.json();
+        // Fetch all customers and their portfolios
+        const customers = await CustomerApiService.getCustomers();
         
         for (const customer of customers) {
-          const portfoliosResponse = await fetch(`/api/portfolios?customerId=${customer.id}`);
-          if (portfoliosResponse.ok) {
-            const customerPortfolios = await portfoliosResponse.json();
-            customerPortfolios.forEach((portfolio: Portfolio) => {
-                portfolio.customerName = customer.name;
+          try {
+            const portfolios = await PortfolioApiService.getPortfoliosByCustomer(customer.id);
+            portfolios.forEach((portfolio: any) => {
+              portfolio.customerName = customer.name;
             });
-            allPortfolios = [...allPortfolios, ...customerPortfolios];
+            allPortfolios = [...allPortfolios, ...portfolios];
+          } catch (error) {
+            console.error(`Error fetching portfolios for customer ${customer.id}:`, error);
           }
         }
       }
@@ -129,64 +123,37 @@ export default function PortfolioOverview() {
     }
   };
   
+  // Replace fetchProperties with:
   const fetchProperties = async (portfolioId: string) => {
     setLoading(true);
     setDataLoaded(false);
     try {
       // Find customer for this portfolio for tax info
       const portfolioInfo = portfolios.find(p => p.id === portfolioId);
-      if (portfolioInfo && portfolioInfo.customerName) {
+      if (portfolioInfo && portfolioInfo.customerId) {
         const customerId = portfolioInfo.customerId;
         
         // Fetch tax info
-        const taxResponse = await fetch(`/api/customers/${customerId}/tax-info`);
-        if (taxResponse.ok) {
-          const taxInfo = await taxResponse.json();
-          dispatch({ type: 'UPDATE_TAX_INFO', taxInfo: {
-            annualIncome: taxInfo.annualIncome,
-            taxStatus: taxInfo.taxStatus,
-            hasChurchTax: taxInfo.hasChurchTax,
-            churchTaxRate: taxInfo.churchTaxRate,
-            taxRate: taxInfo.taxRate
-          }});
+        const taxInfo = await CustomerApiService.getTaxInfo(customerId);
+        if (taxInfo) {
+          dispatch({ type: 'UPDATE_TAX_INFO', taxInfo });
         }
       }
         
       // Fetch properties
-      const response = await fetch(`/api/properties?portfolioId=${portfolioId}`);
-      if (!response.ok) throw new Error('Failed to fetch properties');
+      const propertiesData = await PropertyApiService.getPropertiesByPortfolio(portfolioId);
       
-      const propertiesData = await response.json();
-      
-      // Ensure property data is properly structured
-      const validProperties = propertiesData.map((prop: Property) => ({
-        ...prop,
-        defaults: prop.defaults || {},
-        purchaseData: prop.purchaseData || null,
-        ongoingData: prop.ongoingData || null,
-        calculationResults: prop.calculationResults || null,
-        yearlyData: prop.yearlyData || null
-      }));
-      
-      setProperties(validProperties);
+      // Set properties with validated data
+      setProperties(propertiesData);
       
       // Use the calculation service to get portfolio stats
-      const stats = CalculationService.calculatePortfolioStats(validProperties);
+      const stats = CalculationService.calculatePortfolioStats(propertiesData);
       setPortfolioStats(stats);
     } catch (error) {
       console.error('Error fetching properties:', error);
       setError('Failed to load properties. Please try again later.');
       setProperties([]);
-      setPortfolioStats({
-        totalValue: 0,
-        totalEquity: 0,
-        totalDebt: 0,
-        avgCashflow: 0,
-        avgROI: 0,
-        propertyCount: 0,
-        cashflowPositive: 0,
-        cashflowNegative: 0
-      });
+      resetPortfolioStats();
     } finally {
       setLoading(false);
     }

@@ -2,9 +2,6 @@
 import { createContext, useContext, useReducer, ReactNode, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { AppState, Property, TaxInfo, YearlyData } from '../lib/types';
-import { calculatePurchase } from '../lib/calculators/purchaseCalculator';
-import { calculateOngoing } from '../lib/calculators/ongoingCalculator';
-import { calculateCashflow } from '../lib/calculators/cashflowCalculator';
 import { DEFAULT_PROPERTY_VALUES } from '../lib/constants';
 import { calculateChurchTax, calculateGermanIncomeTax } from '@/lib/calculators/taxCalculator';
 import { CalculationService } from '@/services/calculationService';

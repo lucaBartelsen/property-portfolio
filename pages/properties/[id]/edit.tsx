@@ -15,6 +15,7 @@ import {
 } from '@mantine/core';
 import PropertyForm from '../../../components/PropertyForm';
 import { Property } from '../../../lib/types';
+import { PropertyApiService } from '../../../services/apiService';
 
 export default function EditProperty() {
   const router = useRouter();
@@ -38,48 +39,27 @@ export default function EditProperty() {
   
   const fetchPropertyData = async () => {
     try {
-      // Fetch property data
-      const response = await fetch(`/api/properties/${id}`);
-      if (!response.ok) throw new Error('Failed to fetch property');
-      
-      const data = await response.json();
-      setProperty(data);
-    } catch (error: any) {
+      setLoading(true);
+      // Use API service to fetch property
+      const propertyData = await PropertyApiService.getProperty(id as string);
+      setProperty(propertyData);
+    } catch (error) {
       console.error('Error fetching property:', error);
-      setError(error.message || 'An error occurred');
+      setError(error instanceof Error ? error.message : 'Failed to fetch property');
     } finally {
       setLoading(false);
     }
   };
   
   const handleSaveProperty = async (updatedProperty: Property) => {
-    setLoading(true);
     try {
-      // Prepare property data for saving
-      const propertyData = {
-        name: updatedProperty.name,
-        defaults: updatedProperty.defaults
-      };
-      
-      // Update property
-      const response = await fetch(`/api/properties/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(propertyData),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to update property');
-      }
-      
-      // Navigate back to property details page
+      setLoading(true);
+      // Use API service to update property
+      await PropertyApiService.updateProperty(updatedProperty);
       router.push(`/properties/${id}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating property:', error);
-      setError(error.message || 'An error occurred while saving the property');
+      setError(error instanceof Error ? error.message : 'Failed to update property');
       setLoading(false);
     }
   };

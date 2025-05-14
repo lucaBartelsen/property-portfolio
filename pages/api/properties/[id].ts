@@ -4,7 +4,10 @@ import { getServerSession } from 'next-auth/next';
 import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]';
 import { TaxInfo } from '../../../lib/types';
-import { CalculationService } from '@/services/calculationService';
+import { PropertyUpdateDto } from '../../../lib/dto/PropertyDto';
+import { CustomerMapper } from '../../../lib/dto/CustomerDto';
+import { DataValidator } from '../../../lib/utils/validation';
+import { CalculationService } from '../../../services/calculationService';
 
 const prisma = new PrismaClient();
 
@@ -59,125 +62,93 @@ export default async function handler(
   
   // PUT - Update a property
   if (req.method === 'PUT') {
-    const { name, defaults } = req.body;
+    const propertyDto = req.body as PropertyUpdateDto;
     
-    if (!name || !defaults) {
-        return res.status(400).json({ message: 'Name and defaults are required' });
+    if (!propertyDto.name || !propertyDto.defaults) {
+      return res.status(400).json({ message: 'Name and defaults are required' });
     }
     
     try {
-        // Verify that the property belongs to the user
-        const existingProperty = await prisma.property.findFirst({
+      // Normalize property defaults
+      const normalizedDefaults = DataValidator.normalizePropertyDefaults(propertyDto.defaults);
+      
+      // Verify that the property belongs to the user
+      const existingProperty = await prisma.property.findFirst({
         where: {
-            id: propertyId,
-            portfolio: {
+          id: propertyId,
+          portfolio: {
             customer: {
-                userId
+              userId
             }
-            }
+          }
         },
         include: {
-            portfolio: {
+          portfolio: {
             include: {
-                customer: {
+              customer: {
                 include: {
-                    taxInfo: true
+                  taxInfo: true
                 }
-                }
+              }
             }
-            }
+          }
         }
-        });
-        
-        if (!existingProperty) {
+      });
+      
+      if (!existingProperty) {
         return res.status(404).json({ message: 'Property not found' });
-        }
-        
-        // Get tax info from the customer
-        const dbTaxInfo = existingProperty.portfolio.customer.taxInfo;
-        
-        if (!dbTaxInfo) {
+      }
+      
+      // Get tax info from customer
+      const dbTaxInfo = existingProperty.portfolio.customer.taxInfo;
+      if (!dbTaxInfo) {
         return res.status(400).json({ 
-            message: 'Tax info not found for this customer. Please add tax information first.' 
+          message: 'Tax info not found for this customer. Please add tax information first.' 
         });
-        }
-        
-        // Convert to application's TaxInfo type
-        const taxInfo: TaxInfo = {
-        annualIncome: dbTaxInfo.annualIncome,
-        taxStatus: dbTaxInfo.taxStatus as 'single' | 'married',
-        hasChurchTax: dbTaxInfo.hasChurchTax,
-        churchTaxRate: dbTaxInfo.churchTaxRate,
-        taxRate: dbTaxInfo.taxRate
-        };
-        
-        // Properly prepare property data for calculations
-        const propertyData = {
+      }
+      
+      // Convert to application TaxInfo type
+      const taxInfo = CustomerMapper.mapTaxInfo(dbTaxInfo);
+      
+      // Create a property object for calculations
+      const propertyForCalculation = {
         id: propertyId,
-        name,
-        defaults: {
-            ...defaults,
-            // Ensure number types for critical fields
-            purchasePrice: Number(defaults.purchasePrice),
-            notaryRate: Number(defaults.notaryRate),
-            brokerRate: Number(defaults.brokerRate),
-            depreciationRate: Number(defaults.depreciationRate),
-            landValue: Number(defaults.landValue),
-            buildingValue: Number(defaults.buildingValue),
-            maintenanceCost: Number(defaults.maintenanceCost),
-            furnitureValue: Number(defaults.furnitureValue),
-            maintenanceDistribution: Number(defaults.maintenanceDistribution),
-            downPayment: Number(defaults.downPayment),
-            interestRate: Number(defaults.interestRate),
-            repaymentRate: Number(defaults.repaymentRate),
-            monthlyRent: Number(defaults.monthlyRent),
-            vacancyRate: Number(defaults.vacancyRate),
-            propertyTax: Number(defaults.propertyTax),
-            managementFee: Number(defaults.managementFee),
-            maintenanceReserve: Number(defaults.maintenanceReserve),
-            insurance: Number(defaults.insurance),
-            appreciationRate: Number(defaults.appreciationRate),
-            rentIncreaseRate: Number(defaults.rentIncreaseRate)
-        },
+        name: propertyDto.name,
+        defaults: normalizedDefaults,
         purchaseData: null,
         ongoingData: null,
         calculationResults: null,
         yearlyData: null
-        };
-        
-        // Perform all calculations with proper data
-        // Use calculation service for all calculations
-        const { purchaseData, ongoingData, results: calculationResults, yearlyData } = CalculationService.calculatePropertyData(
-          propertyData, 
-          taxInfo
-        );
-        
-        
-        // Update the property with calculated data
-        const updatedProperty = await prisma.property.update({
+      };
+      
+      // Use calculation service for consistent calculations
+      const { purchaseData, ongoingData, results: calculationResults, yearlyData } = 
+        CalculationService.calculatePropertyData(propertyForCalculation, taxInfo);
+      
+      // Update the property
+      const updatedProperty = await prisma.property.update({
         where: {
-            id: propertyId
+          id: propertyId
         },
         data: {
-            name,
-            defaults: defaults as any,
-            purchaseData: purchaseData as any,
-            ongoingData: ongoingData as any,
-            calculationResults: calculationResults as any,
-            yearlyData: yearlyData as any
+          name: propertyDto.name,
+          defaults: normalizedDefaults as any,
+          purchaseData: purchaseData as any,
+          ongoingData: ongoingData as any,
+          calculationResults: calculationResults as any,
+          yearlyData: yearlyData as any
         }
-        });
-        
-        return res.status(200).json(updatedProperty);
+      });
+      
+      return res.status(200).json(updatedProperty);
     } catch (error: any) {
-        console.error('Error updating property:', error);
-        return res.status(500).json({ 
-            message: 'Failed to update property', 
-            error: error?.message || 'Unknown error'
-        });
+      console.error('Error updating property:', error);
+      return res.status(500).json({ 
+        message: 'Failed to update property', 
+        error: error?.message || 'Unknown error'
+      });
     }
-    }
-  
+  }
   // DELETE - Delete a property
   if (req.method === 'DELETE') {
     try {
