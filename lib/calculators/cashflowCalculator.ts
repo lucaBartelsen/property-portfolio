@@ -39,9 +39,16 @@ export function calculateCashflow(
     
     // Abschreibungsdetails - Sichere Zahlenkonvertierung
     const depreciationRate = ensureValidNumber(property.defaults.depreciationRate, 0, 100, 2) / 100;
-    const buildingValue = ensureValidNumber(property.defaults.buildingValue, 0, 1e9, 250000);
+    
+    // WICHTIG: Die AfA-Basis ist jetzt der Gebäudeanteil plus der proportionale Anteil 
+    // der Grunderwerbsteuer und Notarkosten, die auf das Gebäude entfallen
+    const buildingValueBase = purchaseData.totalBuildingValue; // Bereits inklusive Nebenkosten
+    const annualBuildingDepreciation = buildingValueBase * depreciationRate;
+    
+    // Möbelabschreibung bleibt unverändert
     const furnitureValue = ensureValidNumber(property.defaults.furnitureValue, 0, 1e9, 15000);
     const furnitureDepreciationRate = 0.10; // Fest auf 10% gesetzt
+    const annualFurnitureDepreciation = furnitureValue * furnitureDepreciationRate;
     
     // Projektionsdetails - Sichere Zahlenkonvertierung
     const appreciationRate = ensureValidNumber(property.defaults.appreciationRate, 0, 100, 2) / 100;
@@ -74,10 +81,6 @@ export function calculateCashflow(
         annuity = 0;
       }
     }
-    
-    // Abschreibung berechnen
-    const annualBuildingDepreciation = buildingValue * depreciationRate;
-    const annualFurnitureDepreciation = furnitureValue * furnitureDepreciationRate;
     
     // Berechnung für das erste Jahr
     let yearlyInterest = loanAmount * interestRate;
@@ -129,6 +132,9 @@ export function calculateCashflow(
 
     // Jährliche Daten initialisieren
     const yearlyData: YearlyData[] = [];
+
+    // Der Kaufpreis ohne Möbel ist die Summe aus Grundstück und Gebäude
+    const immobileOnlyPurchasePrice = purchaseData.landValue + purchaseData.buildingValue + purchaseData.maintenanceCost;
     
     // Erstes Jahr hinzufügen
     const purchasePrice = ensureValidNumber(purchaseData.purchasePrice, 1000, 1e9, 316500);
@@ -155,9 +161,10 @@ export function calculateCashflow(
       taxSavings: taxSavings,
       cashflow: cashflowAfterTax,
       cashflowBeforeTax: cashflowBeforeTax,
-      propertyValue: purchasePrice,
-      equity: financingType === 'loan' ? purchasePrice - remainingLoan : purchasePrice,
-      initialEquity: financingType === 'loan' ? downPayment : purchasePrice,
+      // WICHTIGE ÄNDERUNG: Immobilienwert ohne Möbelwert
+      propertyValue: immobileOnlyPurchasePrice,
+      equity: financingType === 'loan' ? immobileOnlyPurchasePrice - remainingLoan : immobileOnlyPurchasePrice,
+      initialEquity: financingType === 'loan' ? downPayment : immobileOnlyPurchasePrice,
       // Zusätzliche detaillierte Daten
       vacancyRate: ensureValidNumber(ongoingData.vacancyRate, 0, 100, 3),
       propertyTax: ensureValidNumber(ongoingData.propertyTax, 0, 1e6, 500),
@@ -169,27 +176,23 @@ export function calculateCashflow(
 
     // Zukünftige Jahre berechnen
     let currentRent = effectiveRent;
-    let currentPropertyValue = purchasePrice;
+    let currentPropertyValue = immobileOnlyPurchasePrice;
     let currentRemainingLoan = remainingLoan;
-    let currentPropertyTax = ongoingData.propertyTax;
-    let currentManagementFee = ongoingData.managementFee;
-    let currentMaintenanceReserve = ongoingData.maintenanceCost;
-    let currentInsurance = ongoingData.insurance;
+
+    // WICHTIGE ÄNDERUNG: Die Bewirtschaftungskosten fix halten
+    // Diese Werte werden nicht mehr jährlich erhöht
+    const fixedPropertyTax = ongoingData.propertyTax;
+    const fixedManagementFee = ongoingData.managementFee;
+    const fixedMaintenanceReserve = ongoingData.maintenanceCost;
+    const fixedInsurance = ongoingData.insurance;
+    const fixedOngoingCosts = fixedPropertyTax + fixedManagementFee + fixedMaintenanceReserve + fixedInsurance;
     
     for (let year = 2; year <= calculationPeriod; year++) {
-      // Inflation auf Miete und Kosten anwenden
+      // Nur die Miete steigt mit der Inflation
       currentRent = ensureValidNumber(currentRent * (1 + rentIncreaseRate), 0, 1e7);
-      currentPropertyTax = ensureValidNumber(currentPropertyTax * (1 + rentIncreaseRate), 0, 1e6);
-      currentManagementFee = ensureValidNumber(currentManagementFee * (1 + rentIncreaseRate), 0, 1e6);
-      currentMaintenanceReserve = ensureValidNumber(currentMaintenanceReserve * (1 + rentIncreaseRate), 0, 1e6);
-      currentInsurance = ensureValidNumber(currentInsurance * (1 + rentIncreaseRate), 0, 1e6);
       
-      // Gesamte laufende Kosten
-      const currentOngoingCosts = ensureValidNumber(
-        currentPropertyTax + currentManagementFee + currentMaintenanceReserve + currentInsurance, 
-        0, 
-        1e7
-      );
+      // ÄNDERUNG: Bewirtschaftungskosten bleiben konstant
+      const currentOngoingCosts = fixedOngoingCosts;
       
       // Cashflow vor Finanzierung
       const currentCashflowBeforeFinancing = ensureValidNumber(currentRent - currentOngoingCosts, -1e7, 1e7);
@@ -253,7 +256,7 @@ export function calculateCashflow(
       
       // Immobilienwert mit Wertsteigerung
       currentPropertyValue = ensureValidNumber(
-        purchasePrice * Math.pow(1 + appreciationRate, year - 1), 
+        immobileOnlyPurchasePrice * Math.pow(1 + appreciationRate, year - 1), 
         0, 
         1e9
       );
@@ -288,12 +291,12 @@ export function calculateCashflow(
         propertyValue: currentPropertyValue,
         equity: yearlyEquity,
         initialEquity: financingType === 'loan' ? downPayment : purchasePrice,
-        // Zusätzliche detaillierte Daten
+        // Zusätzliche detaillierte Daten - WICHTIG: Konstante Werte verwenden
         vacancyRate: ongoingData.vacancyRate,
-        propertyTax: currentPropertyTax,
-        managementFee: currentManagementFee,
-        maintenanceReserve: currentMaintenanceReserve,
-        insurance: currentInsurance,
+        propertyTax: fixedPropertyTax,
+        managementFee: fixedManagementFee,
+        maintenanceReserve: fixedMaintenanceReserve,
+        insurance: fixedInsurance,
         cashflowBeforeFinancing: currentCashflowBeforeFinancing
       });
     }

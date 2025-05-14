@@ -569,17 +569,33 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
               </td>
               {pageData.map((data, index) => (
                 <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                  {formatCurrency(-data.totalDepreciation)}
+                  {formatCurrency(-data.taxableIncome)}
                 </td>
               ))}
             </tr>
             {isCategoryExpanded('tax') && (
               <>
                 <tr>
+                  <td style={{ paddingLeft: 30 }}>Cashflow vor Steuern</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: data.cashflowBeforeTax >= 0 ? 'green' : 'red' }}>
+                      {formatCurrency(data.cashflowBeforeTax)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ paddingLeft: 30 }}>Tilgungsanteil (nicht abzugsfähig)</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', color: 'green' }}>
+                      {formatCurrency(data.principal)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
                   <td style={{ paddingLeft: 30 }}>AfA Gebäude</td>
                   {pageData.map((data, index) => (
                     <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                      {formatCurrency(data.buildingDepreciation)}
+                      {formatCurrency(-data.buildingDepreciation)}
                     </td>
                   ))}
                 </tr>
@@ -587,7 +603,7 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                   <td style={{ paddingLeft: 30 }}>AfA Möbel</td>
                   {pageData.map((data, index) => (
                     <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                      {formatCurrency(data.furnitureDepreciation)}
+                      {formatCurrency(-data.furnitureDepreciation)}
                     </td>
                   ))}
                 </tr>
@@ -595,7 +611,7 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                   <td style={{ paddingLeft: 30 }}>Erhaltungsaufwand</td>
                   {pageData.map((data, index) => (
                     <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                      {formatCurrency(data.maintenanceDeduction)}
+                      {formatCurrency(-data.maintenanceDeduction)}
                     </td>
                   ))}
                 </tr>
@@ -606,11 +622,20 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
                     <td style={{ paddingLeft: 30 }}>Maklerkosten als Beratungsleistung</td>
                     {pageData.map((data, index) => (
                       <td key={index} style={{ textAlign: 'right', color: 'red' }}>
-                        {formatCurrency(data.firstYearDeductibleCosts)}
+                        {formatCurrency(-data.firstYearDeductibleCosts)}
                       </td>
                     ))}
                   </tr>
                 )}
+                
+                <tr>
+                  <td style={{ paddingLeft: 30, borderTop: '1px solid #eee' }}>Ergebnis vor Steuer</td>
+                  {pageData.map((data, index) => (
+                    <td key={index} style={{ textAlign: 'right', borderTop: '1px solid #eee' }}>
+                      {formatCurrency(data.taxableIncome)}
+                    </td>
+                  ))}
+                </tr>
               </>
             )}
             
