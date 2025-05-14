@@ -1,9 +1,10 @@
-// pages/admin/users.tsx
+// pages/admin/users.tsx (updated)
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import {
   Container,
+  Paper,
   Title,
   Table,
   Button,
@@ -16,7 +17,6 @@ import {
   Menu,
   Loader,
   Badge,
-  Paper,
   Switch
 } from '@mantine/core';
 
@@ -191,6 +191,10 @@ export default function UsersAdmin() {
     }
   };
   
+  const navigateBack = () => {
+    router.push('/dashboard');
+  };
+  
   if (status === 'loading' || loading) {
     return (
       <Container size="lg" py="xl">
@@ -215,9 +219,15 @@ export default function UsersAdmin() {
       <Paper p="md" withBorder mb="xl">
         <Group position="apart">
           <Title order={2}>Benutzerverwaltung</Title>
-          <Button onClick={() => setCreateModalOpen(true)}>
-            Neuen Benutzer anlegen
-          </Button>
+          <Group>
+            {/* Zurück-Button hinzugefügt */}
+            <Button variant="outline" onClick={navigateBack}>
+              Zurück zum Dashboard
+            </Button>
+            <Button onClick={() => setCreateModalOpen(true)}>
+              Neuen Benutzer anlegen
+            </Button>
+          </Group>
         </Group>
       </Paper>
       

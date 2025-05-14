@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Hintergrund -->
+  <rect width="64" height="64" rx="12" fill="#4A7AFF"></rect>
+  
+  <!-- Haus -->
+  <path d="M30 12L12 28v20h36V28L30 12z" fill="#FFFFFF"></path>
+  
+  <!-- Dach -->
+  <path d="M30 8L8 24l3 3L30 12l19 15l3-3L30 8z" fill="#2B5BBC"></path>
+  
+  <!-- Tür -->
+  <rect x="26" y="36" width="8" height="12" fill="#2B5BBC"></rect>
+  
+  <!-- Fenster -->
+  <rect x="16" y="30" width="6" height="6" fill="#2B5BBC"></rect>
+  <rect x="38" y="30" width="6" height="6" fill="#2B5BBC"></rect>
+  
+  <!-- Taschenrechner -->
+  <rect x="38" y="36" width="16" height="20" rx="2" fill="#333333"></rect>
+  <rect x="40" y="38" width="12" height="4" rx="1" fill="#DDDDDD"></rect>
+  
+  <!-- Tasten -->
+  <rect x="40" y="44" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="44" y="44" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="48" y="44" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  
+  <rect x="40" y="48" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="44" y="48" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="48" y="48" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  
+  <rect x="40" y="52" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="44" y="52" width="2.5" height="2.5" rx="0.5" fill="#FFFFFF"></rect>
+  <rect x="48" y="52" width="4" height="2.5" rx="0.5" fill="#FF9500"></rect>
+</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
