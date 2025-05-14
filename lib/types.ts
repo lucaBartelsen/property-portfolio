@@ -175,3 +175,14 @@ export interface Portfolio {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface PortfolioStats {
+  totalValue: number;
+  totalEquity: number;
+  totalDebt: number;
+  avgCashflow: number;
+  avgROI: number;
+  propertyCount: number;
+  cashflowPositive: number;
+  cashflowNegative: number;
+}

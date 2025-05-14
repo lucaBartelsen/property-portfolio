@@ -1,10 +1,10 @@
-// src/components/YearTable.tsx
-import { useState, useEffect, useMemo } from 'react';
+// components/YearTable.tsx (refactored)
+import { useState, useEffect } from 'react';
 import { Card, Title, Button, Group, Text, Paper, Table, Pagination } from '@mantine/core';
 import { usePropertyStore } from '../store/PropertyContext';
-import { Property, YearlyData, TaxInfo } from '../lib/types';
+import { Property, YearlyData } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
-import { CalculationService } from '@/services/calculationService';
+import { CalculationService } from '../services/calculationService';
 
 interface YearTableProps {
   property?: Property;
@@ -13,33 +13,45 @@ interface YearTableProps {
 }
 
 export default function YearTable({ property, combined, onBack }: YearTableProps) {
-  const { state, dispatch } = usePropertyStore();
+  const { state } = usePropertyStore();
+  const [yearlyData, setYearlyData] = useState<YearlyData[] | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 5;
   
-  // Calculate yearly data on-demand
-  const yearlyData = useMemo(() => {
-    // For combined view
-    if (combined) {
-      if (state.properties.length === 0) {
-        return null;
-      }
-      
-      const { yearlyData } = CalculationService.calculatePortfolioData(
-        state.properties, 
-        state.taxInfo
-      );
-      
-      return yearlyData;
-    } 
-    // For single property view
-    else if (property) {
-      const { yearlyData } = CalculationService.calculatePropertyData(property, state.taxInfo);
-      return yearlyData;
-    }
+  // Calculate data when props or state change
+  useEffect(() => {
+    setLoading(true);
     
-    return null;
+    try {
+      if (combined) {
+        // Use calculation service for combined data
+        if (state.properties.length === 0) {
+          setYearlyData(null);
+        } else {
+          const { yearlyData } = CalculationService.calculatePortfolioData(
+            state.properties, 
+            state.taxInfo
+          );
+          setYearlyData(yearlyData);
+        }
+      } else if (property) {
+        // Use calculation service for single property
+        const { yearlyData } = CalculationService.calculatePropertyData(
+          property, 
+          state.taxInfo
+        );
+        setYearlyData(yearlyData);
+      } else {
+        setYearlyData(null);
+      }
+    } catch (error) {
+      console.error("Error calculating yearly data:", error);
+      setYearlyData(null);
+    } finally {
+      setLoading(false);
+    }
   }, [combined, property, state.properties, state.taxInfo]);
   
   // Component title
@@ -60,11 +72,6 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
           )}
         </Group>
         <Text align="center">Keine Daten vorhanden. Bitte fügen Sie zuerst Immobilien hinzu.</Text>
-        {combined && (
-          <Button fullWidth mt="md" onClick={() => dispatch({ type: 'CALCULATE_COMBINED_RESULTS' })}>
-            Berechnungen durchführen
-          </Button>
-        )}
       </Paper>
     );
   }
@@ -117,85 +124,9 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     }
     csvContent += '\n';
     
-    // 1. Mieteinnahmen (Rent income)
-    csvContent += addCsvRow('Mieteinnahmen', (data: YearlyData) => data.rent);
-    if (isCategoryExpanded('income')) {
-        csvContent += addCsvRow('  Mieteinnahmen (brutto)', (data: YearlyData) => data.rent * 100/(100-data.vacancyRate));
-        csvContent += addCsvRow('  Leerstand', (data: YearlyData) => -(data.rent * 100/(100-data.vacancyRate) - data.rent));
-        csvContent += addCsvRow('  Effektive Mieteinnahmen', (data: YearlyData) => data.rent);
-    }
-    
-    // 2. Bewirtschaftungskosten (Operating costs)
-    csvContent += addCsvRow('Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
-    if (isCategoryExpanded('costs')) {
-        csvContent += addCsvRow('  Grundsteuer', (data: YearlyData) => -data.propertyTax);
-        csvContent += addCsvRow('  Hausverwaltung', (data: YearlyData) => -data.managementFee);
-        csvContent += addCsvRow('  Instandhaltungsrücklage', (data: YearlyData) => -data.maintenanceReserve);
-        csvContent += addCsvRow('  Versicherungen', (data: YearlyData) => -data.insurance);
-        csvContent += addCsvRow('  Gesamte Bewirtschaftungskosten', (data: YearlyData) => -data.ongoingCosts);
-    }
-    
-    // 3. Cashflow vor Finanzierung (Cashflow before financing)
-    csvContent += addCsvRow('Cashflow vor Finanzierung', (data: YearlyData) => data.cashflowBeforeFinancing);
-    
-    // 4. Finanzierung (Financing)
-    csvContent += addCsvRow('Finanzierung', (data: YearlyData) => -data.payment);
-    if (isCategoryExpanded('financing')) {
-        csvContent += addCsvRow('  Zinsanteil', (data: YearlyData) => -data.interest);
-        csvContent += addCsvRow('  Tilgungsanteil', (data: YearlyData) => -data.principal);
-        csvContent += addCsvRow('  Annuität (Rate)', (data: YearlyData) => -data.payment);
-    }
-    
-    // 5. Cashflow vor Steuern (Cashflow before tax)
-    csvContent += addCsvRow('Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
-    
-    // 6. Abschreibungen & Steuern (Depreciation & tax)
-    csvContent += addCsvRow('Abschreibungen & Steuern', (data: YearlyData) => -data.taxableIncome);
-    if (isCategoryExpanded('tax')) {
-        csvContent += addCsvRow('  Cashflow vor Steuern', (data: YearlyData) => data.cashflowBeforeTax);
-        csvContent += addCsvRow('  Tilgungsanteil (nicht abzugsfähig)', (data: YearlyData) => data.principal);
-        csvContent += addCsvRow('  AfA Gebäude', (data: YearlyData) => -data.buildingDepreciation);
-        csvContent += addCsvRow('  AfA Möbel', (data: YearlyData) => -data.furnitureDepreciation);
-        csvContent += addCsvRow('  Erhaltungsaufwand', (data: YearlyData) => -data.maintenanceDeduction);
-        
-        if (yearlyData.some(data => data.firstYearDeductibleCosts > 0)) {
-        csvContent += addCsvRow('  Maklerkosten als Beratungsleistung', (data: YearlyData) => -data.firstYearDeductibleCosts);
-        }
-        
-        csvContent += addCsvRow('  Ergebnis vor Steuer', (data: YearlyData) => data.taxableIncome);
-    }
-    
-    // 7. Steuerersparnis (Tax savings)
-    csvContent += addCsvRow('Steuerersparnis', (data: YearlyData) => data.taxSavings);
-    if (isCategoryExpanded('tax-savings')) {
-        csvContent += addCsvRow('  Zu versteuerndes Einkommen (ohne Immobilie)', (data: YearlyData) => data.previousIncome);
-        csvContent += addCsvRow('  Zu versteuerndes Einkommen (mit Immobilie)', (data: YearlyData) => data.newTotalIncome);
-        csvContent += addCsvRow('  Einkommensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousTax);
-        csvContent += addCsvRow('  Einkommensteuer (mit Immobilie)', (data: YearlyData) => -data.newTax);
-        
-        if (yearlyData.some(data => data.previousChurchTax > 0 || data.newChurchTax > 0)) {
-        csvContent += addCsvRow('  Kirchensteuer (ohne Immobilie)', (data: YearlyData) => -data.previousChurchTax);
-        csvContent += addCsvRow('  Kirchensteuer (mit Immobilie)', (data: YearlyData) => -data.newChurchTax);
-        }
-        
-        csvContent += addCsvRow('  Gesamte Steuerersparnis', (data: YearlyData) => data.taxSavings);
-    }
-    
-    // 8. Cashflow nach Steuern (Cashflow after tax)
-    csvContent += addCsvRow('Cashflow nach Steuern', (data: YearlyData) => data.cashflow);
-    
-    // 9. Vermögenswerte (Assets)
-    csvContent += addCsvRow('Vermögenswerte', (data: YearlyData) => data.equity);
-    if (isCategoryExpanded('assets')) {
-        csvContent += addCsvRow('  Immobilienwert', (data: YearlyData) => data.propertyValue);
-        csvContent += addCsvRow('  Restschuld', (data: YearlyData) => -data.loanBalance);
-        csvContent += addCsvRow('  Eigenkapital', (data: YearlyData) => data.equity);
-        csvContent += addCsvRow('  Eigenkapitalrendite (%)', (data: YearlyData) => (data.cashflow / data.initialEquity * 100), true);
-    }
-
     // Create and download CSV file
     downloadCsv(csvContent, 'immobilien-jahresuebersicht.csv');
-    };
+  };
 
   const exportAllToCsv = () => {
     if (!yearlyData) return;
@@ -317,36 +248,41 @@ export default function YearTable({ property, combined, onBack }: YearTableProps
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
         <Title order={2}>{title}</Title>
+        {onBack && (
+          <Button variant="outline" onClick={onBack}>
+            Zurück
+          </Button>
+        )}
       </Group>
       
       <Group position="apart" mb="sm">
         <Button.Group>
-            <Button 
+          <Button 
             variant="light"
             onClick={exportToCsv}
-            >
+          >
             CSV Export (aktuelle Ansicht)
-            </Button>
-            <Button 
+          </Button>
+          <Button 
             variant="light"
             onClick={exportAllToCsv}
-            >
+          >
             Vollständiger CSV Export
-            </Button>
-            <Button 
+          </Button>
+          <Button 
             variant="light"
             onClick={expandAll}
-            >
+          >
             Alle aufklappen
-            </Button>
-            <Button 
+          </Button>
+          <Button 
             variant="light"
             onClick={collapseAll}
-            >
+          >
             Alle zuklappen
-            </Button>
+          </Button>
         </Button.Group>
-        </Group>
+      </Group>
       
       <div style={{ overflowX: 'auto' }}>
         <Table striped highlightOnHover>
