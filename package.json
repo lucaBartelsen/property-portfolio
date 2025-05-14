@@ -16,6 +16,7 @@
     "@mantine/hooks": "^6.0.21",
     "@mantine/next": "^6.0.21",
     "@prisma/client": "^6.7.0",
+    "aws-sdk": "^2.1692.0",
     "bcrypt": "^6.0.0",
     "next": "15.3.2",
     "next-auth": "^4.24.11",
