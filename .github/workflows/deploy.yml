@@ -24,7 +24,6 @@ jobs:
       - name: Build
         run: npm run build
         
-      # The deployment step will depend on your hosting solution
       - name: Deploy to server
         uses: appleboy/ssh-action@master
         with:
