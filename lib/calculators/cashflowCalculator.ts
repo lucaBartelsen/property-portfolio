@@ -192,7 +192,7 @@ export function calculateCashflow(
     let loanAmount = financingCosts.totalLoanAmount;
     let annuity = financingCosts.totalAnnuity;
 
-    const totalCost = calculateTotalCost(property.defaults.purchasePrice, property.defaults.bundesland, property.defaults.notaryRate, property.defaults.brokerRate)
+    const totalCost = calculateTotalCost(property.defaults.purchasePrice, property.defaults.bundesland, property.defaults.notaryRate, property.defaults.brokerRate, property.defaults.furnitureValue)
     
     // Initial property value (at purchase)
     const initialImmobileOnlyPurchasePrice = purchaseData.landValue + purchaseData.buildingValue + purchaseData.maintenanceCost;

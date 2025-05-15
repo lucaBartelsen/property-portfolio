@@ -1,6 +1,6 @@
-// Updates to src/components/PropertyDetails.tsx
+// Updated src/components/PropertyDetails.tsx
 import { useEffect } from 'react';
-import { Card, Title, Button, Group, Text, Grid, Divider, Badge } from '@mantine/core';
+import { Card, Title, Button, Group, Text, Grid, Divider, Badge, Box } from '@mantine/core';
 import { Property } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
 import { usePropertyStore } from '../store/PropertyContext';
@@ -50,150 +50,282 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
   const usingMarketValue = property.defaults.useCurrentMarketValue && property.defaults.currentMarketValue;
   const usingDebtValue = property.defaults.useCurrentDebtValue && property.defaults.currentDebtValue !== undefined;
   
+  // Calculate yearly growth and years in calculation
+  const appreciationRate = property.defaults.appreciationRate || 2;
+  const yearlyData = property.yearlyData || [];
+  const calculationPeriod = yearlyData.length;
+  
+  // Ensure we have valid equity values
+  const initialEquity = results.initialEquity || 0;
+  const finalEquity = results.finalEquity || 0;
+  const equityGrowth = finalEquity - initialEquity;
+  const equityGrowthPercent = initialEquity > 0 
+    ? (equityGrowth / initialEquity) * 100 
+    : 0;
+    
+  // Calculate annualized return
+  const annualizedReturn = calculationPeriod > 1 
+    ? (Math.pow((finalEquity / initialEquity), 1 / calculationPeriod) - 1) * 100 
+    : equityGrowthPercent;
+
+  // Calculate monthly values
+  const monthlyRent = ongoingData.effectiveRent / 12;
+  const monthlyOngoingCosts = ongoingData.totalOngoing / 12;
+  const monthlyLoanPayment = results.monthlyPayment;
+  const monthlyCashflowBeforeTax = monthlyRent - monthlyOngoingCosts - monthlyLoanPayment;
+  
+  // Calculate cash-on-cash return (not including appreciation)
+  const cashOnCashReturn = initialEquity > 0 
+    ? (results.monthlyCashflow * 12 / initialEquity) * 100 
+    : 0;
+    
   return (
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
         <Title order={2}>Übersicht: {property.name}</Title>
+        <Button variant="outline" onClick={onBack}>
+          Zurück
+        </Button>
       </Group>
       
       <Grid gutter="xl">
+        {/* SECTION 1: Kaufpreisdaten und Kaufpreisaufteilung */}
         <Grid.Col span={12}>
           <Card withBorder p="md">
-            <Title order={3} mb="sm">Kaufkosten & Steuern</Title>
             <Grid>
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Kaufpreis:</Text>
-                <Text>{formatCurrency(purchaseData.purchasePrice)}</Text>
+              <Grid.Col span={8}>
+                <Title order={3} mb="sm">Kaufpreis & Kaufpreisaufteilung</Title>
+                <Grid>
+                  <Grid.Col span={6}>
+                    <Text size="sm" color="dimmed">Kaufpreis:</Text>
+                    <Text weight={700}>{formatCurrency(purchaseData.purchasePrice)}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="sm" color="dimmed">Kaufdatum:</Text>
+                    <Text>{purchaseDate}</Text>
+                  </Grid.Col>
+                  
+                  <Grid.Col span={12}>
+                    <Divider my="xs" />
+                  </Grid.Col>
+                  
+                  <Grid.Col span={3}>
+                    <Text size="sm" color="dimmed">Grundstücksanteil:</Text>
+                    <Text>{formatCurrency(purchaseData.landValue)}</Text>
+                    <Text size="xs" color="dimmed">({purchaseData.landValuePercentage.toFixed(1)}%)</Text>
+                  </Grid.Col>
+                  <Grid.Col span={3}>
+                    <Text size="sm" color="dimmed">Gebäudeanteil:</Text>
+                    <Text>{formatCurrency(purchaseData.buildingValue)}</Text>
+                    <Text size="xs" color="dimmed">({purchaseData.buildingValuePercentage.toFixed(1)}%)</Text>
+                  </Grid.Col>
+                  <Grid.Col span={3}>
+                    <Text size="sm" color="dimmed">Erhaltungsaufwand:</Text>
+                    <Text>{formatCurrency(purchaseData.maintenanceCost)}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={3}>
+                    <Text size="sm" color="dimmed">Möbel:</Text>
+                    <Text>{formatCurrency(purchaseData.furnitureValue)}</Text>
+                  </Grid.Col>
+                </Grid>
               </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Kaufdatum:</Text>
-                <Text>{purchaseDate}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
+              
+              <Grid.Col span={4}>
+                <Title order={3} mb="sm">Kaufnebenkosten</Title>
                 <Text size="sm" color="dimmed">Grunderwerbsteuer:</Text>
                 <Text>{formatCurrency(purchaseData.grunderwerbsteuer)}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Notarkosten:</Text>
+                
+                <Text size="sm" color="dimmed" mt="sm">Notarkosten:</Text>
                 <Text>{formatCurrency(purchaseData.notaryCosts)}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Maklerprovision:</Text>
+                
+                <Text size="sm" color="dimmed" mt="sm">Maklerprovision:</Text>
                 <Text>{formatCurrency(purchaseData.brokerFee)}</Text>
-              </Grid.Col>
-              {purchaseData.brokerAsConsulting && purchaseData.firstYearDeductibleCosts > 0 && (
-                <Grid.Col span={6}>
-                  <Text size="sm" color="dimmed">Maklerprovision als Beratungsleistung (absetzbar):</Text>
-                  <Text>{formatCurrency(purchaseData.firstYearDeductibleCosts)}</Text>
-                </Grid.Col>
-              )}
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Gesamte Kaufnebenkosten:</Text>
-                <Text>{formatCurrency(purchaseData.totalExtra)}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="sm" color="dimmed">Gesamtkosten:</Text>
+                
+                <Text size="sm" color="dimmed" mt="sm">Gesamte Kaufnebenkosten:</Text>
+                <Text weight={700}>{formatCurrency(purchaseData.totalExtra)}</Text>
+                
+                <Text size="sm" color="dimmed" mt="sm">Gesamtkosten:</Text>
                 <Text weight={700}>{formatCurrency(purchaseData.totalCost)}</Text>
               </Grid.Col>
             </Grid>
           </Card>
         </Grid.Col>
         
-        <Grid.Col span={6}>
+        {/* SECTION 2: Monatliche Übersicht */}
+        <Grid.Col span={12} md={6}>
           <Card withBorder p="md" style={{ height: '100%' }}>
-            <Title order={3} mb="sm">Jährliche Kosten & Einnahmen</Title>
-            <div>
-              <Text size="sm" color="dimmed">Jährliche Mieteinnahmen (brutto):</Text>
-              <Text>{formatCurrency(ongoingData.annualRent)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Effektive Mieteinnahmen (nach Leerstand):</Text>
-              <Text>{formatCurrency(ongoingData.effectiveRent)}</Text>
-            </div>
-            <Divider my="sm" />
-            <div>
-              <Text size="sm" color="dimmed">Grundsteuer:</Text>
-              <Text>{formatCurrency(ongoingData.propertyTax)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Hausverwaltung:</Text>
-              <Text>{formatCurrency(ongoingData.managementFee)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Instandhaltungsrücklage:</Text>
-              <Text>{formatCurrency(ongoingData.maintenanceCost)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Versicherungen:</Text>
-              <Text>{formatCurrency(ongoingData.insurance)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Gesamte laufende Kosten:</Text>
-              <Text weight={700}>{formatCurrency(ongoingData.totalOngoing)}</Text>
-            </div>
+            <Title order={3} mb="sm">Monatliche Übersicht</Title>
+            <Grid>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Monatliche Mieteinnahmen:</Text>
+                <Text weight={500} color="green">{formatCurrency(monthlyRent)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Monatl. laufende Kosten:</Text>
+                <Text weight={500} color="red">{formatCurrency(monthlyOngoingCosts)}</Text>
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Divider my="xs" />
+              </Grid.Col>
+              
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Monatl. Finanzierungskosten:</Text>
+                <Text weight={500} color="red">{formatCurrency(monthlyLoanPayment)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Monatl. Cashflow vor Steuern:</Text>
+                <Text weight={600} color={monthlyCashflowBeforeTax >= 0 ? "green" : "red"}>
+                  {formatCurrency(monthlyCashflowBeforeTax)}
+                </Text>
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Divider my="xs" />
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Text size="sm" color="dimmed">Monatl. Cashflow nach Steuern:</Text>
+                <Text weight={700} size="lg" color={results.monthlyCashflow >= 0 ? "green" : "red"}>
+                  {formatCurrency(results.monthlyCashflow)}
+                </Text>
+              </Grid.Col>
+            </Grid>
           </Card>
         </Grid.Col>
         
-        <Grid.Col span={6}>
+        {/* SECTION 3: Finanzierungsübersicht */}
+        <Grid.Col span={12} md={6}>
           <Card withBorder p="md" style={{ height: '100%' }}>
-            <Title order={3} mb="sm">Zusammenfassung</Title>
-            <div>
-              <Text size="sm" color="dimmed">Kaufpreis inkl. Nebenkosten:</Text>
-              <Text>{formatCurrency(results.totalCost)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Eigenkapital:</Text>
-              <Text>{formatCurrency(results.initialEquity)}</Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Fremdkapital:</Text>
-              <Group spacing="xs">
-                <Text>{formatCurrency(results.loanAmount)}</Text>
-                {usingDebtValue && (
-                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
-                )}
-              </Group>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Monatliche Belastung (Bank):</Text>
-              <Text>{formatCurrency(results.monthlyPayment)}</Text>
-            </div>
-            <Divider my="sm" />
-            <div>
-              <Text size="sm" color="dimmed">Monatlicher Cashflow nach Steuern:</Text>
-              <Text weight={700} color={results.monthlyCashflow >= 0 ? "green" : "red"}>
-                {formatCurrency(results.monthlyCashflow)}
-              </Text>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Cashflow-Rendite (bezogen auf Eigenkapital):</Text>
-              <Text weight={700}>
-                {((results.monthlyCashflow * 12 / results.initialEquity) * 100).toFixed(2)} %
-              </Text>
-            </div>
-            <Divider my="sm" />
-            <div>
-              <Text size="sm" color="dimmed">Immobilienwert:</Text>
-              <Group spacing="xs">
-                <Text>{formatCurrency(results.finalPropertyValue)}</Text>
-                {usingMarketValue && (
-                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
-                )}
-              </Group>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Restschuld:</Text>
-              <Group spacing="xs">
-                <Text>{formatCurrency(results.remainingLoan)}</Text>
-                {usingDebtValue && (
-                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
-                )}
-              </Group>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Eigenkapitalentwicklung:</Text>
-              <Text weight={700}>{formatCurrency(results.finalEquity - results.initialEquity)}</Text>
-            </div>
+            <Title order={3} mb="sm">Finanzierungsübersicht</Title>
+            <Grid>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Gesamtkosten:</Text>
+                <Text>{formatCurrency(results.totalCost)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Eigenkapital:</Text>
+                <Text>{formatCurrency(results.initialEquity)}</Text>
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Divider my="xs" />
+              </Grid.Col>
+              
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Darlehenshöhe:</Text>
+                <Group spacing="xs">
+                  <Text>{formatCurrency(results.loanAmount)}</Text>
+                  {usingDebtValue && (
+                    <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                  )}
+                </Group>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Restschuld in {calculationPeriod} Jahren:</Text>
+                <Group spacing="xs">
+                  <Text>{formatCurrency(results.remainingLoan)}</Text>
+                  {usingDebtValue && (
+                    <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                  )}
+                </Group>
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Divider my="xs" />
+              </Grid.Col>
+              
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Jährliche Rate:</Text>
+                <Text>{formatCurrency(results.annuity)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Monatliche Rate:</Text>
+                <Text weight={500}>{formatCurrency(results.monthlyPayment)}</Text>
+              </Grid.Col>
+            </Grid>
+          </Card>
+        </Grid.Col>
+        
+        {/* SECTION 4: Rendite und Kapitalentwicklung */}
+        <Grid.Col span={12}>
+          <Card withBorder p="md">
+            <Title order={3} mb="sm">Eigenkapitalrendite & -entwicklung ({calculationPeriod} Jahre)</Title>
+            <Grid>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Immobilienwert zu Beginn:</Text>
+                <Text>{formatCurrency(purchaseData.purchasePrice)}</Text>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Immobilienwert am Ende:</Text>
+                <Group spacing="xs">
+                  <Text>{formatCurrency(results.finalPropertyValue)}</Text>
+                  {usingMarketValue && (
+                    <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                  )}
+                </Group>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Wertsteigerung p.a.:</Text>
+                <Text>{appreciationRate.toFixed(1)}%</Text>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Eigenkapital zu Beginn:</Text>
+                <Text>{formatCurrency(initialEquity)}</Text>
+              </Grid.Col>
+              
+              <Grid.Col span={12}>
+                <Divider my="xs" />
+              </Grid.Col>
+              
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Eigenkapital am Ende:</Text>
+                <Text>{formatCurrency(finalEquity)}</Text>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Eigenkapitalzuwachs:</Text>
+                <Text color={equityGrowth >= 0 ? "green" : "red"}>
+                  {formatCurrency(equityGrowth)} ({equityGrowthPercent.toFixed(1)}%)
+                </Text>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Annualisierte Rendite:</Text>
+                <Text weight={600} color={annualizedReturn >= 0 ? "green" : "red"}>
+                  {annualizedReturn.toFixed(2)}% p.a.
+                </Text>
+              </Grid.Col>
+              <Grid.Col span={3}>
+                <Text size="sm" color="dimmed">Cash-on-Cash Rendite:</Text>
+                <Text weight={600} color={cashOnCashReturn >= 0 ? "green" : "red"}>
+                  {cashOnCashReturn.toFixed(2)}%
+                </Text>
+              </Grid.Col>
+            </Grid>
+          </Card>
+        </Grid.Col>
+        
+        {/* SECTION 5: Laufende Kosten Detail */}
+        <Grid.Col span={12}>
+          <Card withBorder p="md">
+            <Title order={3} mb="sm">Details zu laufenden Kosten</Title>
+            <Grid>
+              <Grid.Col span={6} md={3}>
+                <Text size="sm" color="dimmed">Grundsteuer (jährlich):</Text>
+                <Text>{formatCurrency(ongoingData.propertyTax)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6} md={3}>
+                <Text size="sm" color="dimmed">Hausverwaltung (jährlich):</Text>
+                <Text>{formatCurrency(ongoingData.managementFee)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6} md={3}>
+                <Text size="sm" color="dimmed">Instandhaltungsrücklage (jährlich):</Text>
+                <Text>{formatCurrency(ongoingData.maintenanceCost)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6} md={3}>
+                <Text size="sm" color="dimmed">Versicherungen (jährlich):</Text>
+                <Text>{formatCurrency(ongoingData.insurance)}</Text>
+              </Grid.Col>
+            </Grid>
           </Card>
         </Grid.Col>
       </Grid>

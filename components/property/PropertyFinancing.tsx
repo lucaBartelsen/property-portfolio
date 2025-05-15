@@ -36,7 +36,8 @@ export function PropertyFinancing({
     watch('purchasePrice'),
     watch('bundesland'),
     watch('notaryRate'),
-    watch('brokerRate')
+    watch('brokerRate'),
+    watch('furnitureValue')
   );
   const downPayment = ensureNumber(watch('downPayment'));
   const loanAmount1 = ensureNumber(watch('loanAmount1'));

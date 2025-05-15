@@ -44,15 +44,15 @@ export function calculatePurchase(property: Property): PurchaseData {
   
   // WICHTIGE ÄNDERUNG: Grunderwerbsteuer nur auf Gebäude + Grundstück berechnen
   const grunderwerbsteuerBase = immobileValue + maintenanceCost;
-  const grunderwerbsteuer = grunderwerbsteuerBase * (grunderwerbsteuerRate / 100);
+  const grunderwerbsteuer = Math.round(grunderwerbsteuerBase * (grunderwerbsteuerRate / 100));
   
   // Notar- und Maklerkosten auf Gesamtkaufpreis
-  const notaryCosts = purchasePrice * (notaryRate / 100);
-  const brokerFee = purchasePrice * (brokerRate / 100);
+  const notaryCosts = Math.round(purchasePrice * (notaryRate / 100));
+  const brokerFee = Math.round(purchasePrice * (brokerRate / 100));
   
   // Gesamte Nebenkosten
-  const totalExtra = grunderwerbsteuer + notaryCosts + brokerFee;
-  const totalCost = calculateTotalCost(defaults.purchasePrice, defaults.bundesland, defaults.notaryRate, defaults.brokerRate)
+  const totalCost = calculateTotalCost(defaults.purchasePrice, defaults.bundesland, defaults.notaryRate, defaults.brokerRate, defaults.furnitureValue);
+  const totalExtra = totalCost - purchasePrice;
   
   // Nebenkosten auf Grundstück und Gebäude aufteilen
   // Wenn Maklerkosten als Beratung zählen, diese von den Anschaffungskosten ausschließen
