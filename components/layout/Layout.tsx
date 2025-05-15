@@ -1,4 +1,4 @@
-// components/layout/Layout.tsx
+// components/layout/Layout.tsx - Updated version
 import { ReactNode, useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -16,43 +16,19 @@ interface LayoutProps {
 export function Layout({ children, requireAuth = true, checkAdmin = false }: LayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState(false);
   const [passwordModalOpened, { open: openPasswordModal, close: closePasswordModal }] = useDisclosure(false);
-
-  // Check admin status when the component mounts
-  useEffect(() => {
-    if (status === 'authenticated') {
-      checkAdminStatus();
-    }
-  }, [status]);
 
   // Check if user is authenticated
   useEffect(() => {
     if (requireAuth && status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [requireAuth, status, router]);
 
-  // Function to check admin status
-  const checkAdminStatus = async () => {
-    try {
-      const response = await fetch('/api/admin/users');
-      if (response.ok) {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-        if (checkAdmin) {
-          router.push('/dashboard');
-        }
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
-      if (checkAdmin) {
-        router.push('/dashboard');
-      }
+    // If this page requires admin access and user is not an admin, redirect to dashboard
+    if (checkAdmin && session && session.user && !session.user.isAdmin) {
+      router.push('/dashboard');
     }
-  };
+  }, [requireAuth, status, router, checkAdmin, session]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -71,7 +47,7 @@ export function Layout({ children, requireAuth = true, checkAdmin = false }: Lay
           session={session} 
           onLogout={handleLogout} 
           onPasswordChange={openPasswordModal} 
-          isAdmin={isAdmin} 
+          isAdmin={session?.user?.isAdmin || false} 
         />
       )}
       

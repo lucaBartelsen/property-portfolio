@@ -1,5 +1,5 @@
-// pages/dashboard.tsx
-import { useState, useEffect } from 'react';
+// pages/dashboard.tsx - Updated to remove admin API call
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { 
@@ -20,24 +20,6 @@ export default function Dashboard() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { data: customers, loading, error } = useApiData<any[]>('/api/customers');
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  // Check admin status
-  useEffect(() => {
-    if (status === 'authenticated') {
-      checkIfAdmin();
-    }
-  }, [status]);
-
-  const checkIfAdmin = async () => {
-    try {
-      const response = await fetch('/api/admin/users');
-      setIsAdmin(response.ok);
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
-    }
-  };
 
   const navigateToCustomer = (customerId: string) => {
     router.push(`/customers/${customerId}`);
@@ -90,7 +72,7 @@ export default function Dashboard() {
           </SimpleGrid>
         )}
         
-        {isAdmin && (
+        {session?.user?.isAdmin && (
           <>
             <Divider my="xl" />
             <Title order={2} mb="md">Administrator-Funktionen</Title>

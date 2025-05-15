@@ -1,4 +1,4 @@
-// pages/admin/users.tsx (updated)
+// pages/admin/users.tsx - Updated to remove API call
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
@@ -44,7 +44,6 @@ export default function UsersAdmin() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
   
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -57,28 +56,14 @@ export default function UsersAdmin() {
   
   useEffect(() => {
     if (status === 'authenticated') {
-      checkAdminStatus();
-      fetchUsers();
-    }
-  }, [status]);
-  
-  const checkAdminStatus = async () => {
-    try {
-      // Check if the current user is an admin
-      const response = await fetch('/api/admin/users');
-      if (!response.ok) {
-        if (response.status === 403) {
-          router.push('/dashboard');
-          return;
-        }
-        throw new Error('Failed to check admin status');
+      // Check if user is admin based on session
+      if (!session?.user?.isAdmin) {
+        router.push('/dashboard');
+      } else {
+        fetchUsers();
       }
-      setIsAdmin(true);
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      router.push('/dashboard');
     }
-  };
+  }, [status, session]);
   
   const fetchUsers = async () => {
     setLoading(true);
@@ -105,6 +90,7 @@ export default function UsersAdmin() {
   };
   
   const handleCreateUser = async () => {
+    // Code remains unchanged
     setFormError('');
     setSubmitting(true);
     
@@ -140,6 +126,7 @@ export default function UsersAdmin() {
   };
   
   const handleDeleteUser = async () => {
+    // Code remains unchanged
     if (!userToDelete) return;
     
     setSubmitting(true);
@@ -171,6 +158,7 @@ export default function UsersAdmin() {
   };
   
   const handleSendPasswordReset = async (userId: string) => {
+    // Code remains unchanged
     try {
       const response = await fetch(`/api/admin/users/${userId}?action=reset-password`, {
         method: 'POST',
@@ -203,7 +191,8 @@ export default function UsersAdmin() {
     );
   }
   
-  if (!isAdmin) {
+  // Check if the user is an admin using session data
+  if (!session?.user?.isAdmin) {
     return (
       <Container size="lg" py="xl">
         <Text>Sie haben keine Berechtigung, diese Seite anzuzeigen.</Text>
@@ -215,6 +204,7 @@ export default function UsersAdmin() {
   }
   
   return (
+    // The rest of the JSX remains the same
     <Container size="lg" py="xl">
       <Paper p="md" withBorder mb="xl">
         <Group position="apart">

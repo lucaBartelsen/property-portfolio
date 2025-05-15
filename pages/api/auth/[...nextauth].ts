@@ -1,4 +1,4 @@
-// pages/api/auth/[...nextauth].ts
+// pages/api/auth/[...nextauth].ts - Updated version
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaClient } from '@prisma/client';
@@ -36,7 +36,8 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          isAdmin: user.isAdmin // Include isAdmin in the returned user object
         };
       }
     })
@@ -45,12 +46,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.isAdmin = user.isAdmin; // Store isAdmin in the JWT token
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.isAdmin = token.isAdmin as boolean; // Include isAdmin in the session
       }
       return session;
     }
