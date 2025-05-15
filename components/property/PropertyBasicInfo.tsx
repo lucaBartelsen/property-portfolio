@@ -1,5 +1,6 @@
 // components/property/PropertyBasicInfo.tsx
 import { Checkbox, Grid, NumberInput, Select } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { UseFormWatch, UseFormSetValue, FieldErrors } from 'react-hook-form';
 import { BUNDESLAENDER } from '../../lib/constants';
 import { PropertyDefaults } from '../../lib/types';
@@ -29,6 +30,20 @@ export function PropertyBasicInfo({ watch, setValue, errors }: PropertyBasicInfo
           value={watch('purchasePrice')}
           onChange={(val) => setValue('purchasePrice', ensureNumber(val))}
           error={errors.purchasePrice?.message}
+        />
+      </Grid.Col>
+      <Grid.Col span={6}>
+        <DateInput
+          label="Kaufdatum"
+          placeholder="TT.MM.JJJJ"
+          required
+          value={watch('purchaseDate') ? new Date(watch('purchaseDate')) : null}
+          onChange={(date) => {
+            if (date) {
+              setValue('purchaseDate', date.toISOString().split('T')[0]);
+            }
+          }}
+          error={errors.purchaseDate?.message}
         />
       </Grid.Col>
       <Grid.Col span={6}>

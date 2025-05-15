@@ -9,44 +9,224 @@ import { calculateTotalCost } from '../lib/utils/calculations';
 
 export class CalculationService {
   /**
-   * Calculate all data for a single property
-   */
-  static calculatePropertyData(property: Property, taxInfo: TaxInfo): {
-    purchaseData: PurchaseData;
-    ongoingData: OngoingData;
-    results: CalculationResults;
-    yearlyData: YearlyData[];
-  } {
-    try {
-      // Calculate purchase and ongoing data
-      const purchaseData = calculatePurchase(property);
-      const ongoingData = calculateOngoing(property);
-      
-      // Then calculate cashflow with these values
-      const { results, yearlyData } = calculateCashflow(
-        { ...property, purchaseData, ongoingData },
-        taxInfo,
-        10 // Standard calculation period
-      );
-      
-      return { purchaseData, ongoingData, results, yearlyData };
-    } catch (error) {
-      console.error("Error calculating property data:", error);
-      
-      // Return default values in case of error
-      const defaultPurchaseData = property.purchaseData || {} as PurchaseData;
-      const defaultOngoingData = property.ongoingData || {} as OngoingData;
-      const defaultResults = property.calculationResults || {} as CalculationResults;
-      const defaultYearlyData = property.yearlyData || [] as YearlyData[];
-      
-      return { 
-        purchaseData: defaultPurchaseData, 
-        ongoingData: defaultOngoingData, 
-        results: defaultResults, 
-        yearlyData: defaultYearlyData 
-      };
+ * Calculate all data for a single property
+ */
+    static calculatePropertyData(property: Property, taxInfo: TaxInfo): {
+        purchaseData: PurchaseData;
+        ongoingData: OngoingData;
+        results: CalculationResults;
+        yearlyData: YearlyData[];
+        } {
+        try {
+            // Calculate purchase and ongoing data
+            const purchaseData = calculatePurchase(property);
+            const ongoingData = calculateOngoing(property);
+            
+            // Get current date
+            const currentDate = new Date();
+            
+            // Get purchase date or default to today
+            const purchaseDateStr = property.defaults.purchaseDate || currentDate.toISOString().split('T')[0];
+            const purchaseDate = new Date(purchaseDateStr);
+            
+            // Calculate years passed since purchase
+            const yearsPassed = this.calculateYearsSincePurchase(purchaseDate, currentDate);
+            
+            // Then calculate cashflow with these values and years passed
+            const { results, yearlyData } = calculateCashflow(
+            { ...property, purchaseData, ongoingData },
+            taxInfo,
+            10, // Standard calculation period
+            yearsPassed
+            );
+            
+            // Apply market value override if enabled
+            if (property.defaults.useCurrentMarketValue && property.defaults.currentMarketValue) {
+            // Store the original property value for reference
+            const originalPropertyValue = results.finalPropertyValue;
+            
+            // Update the property value in results
+            results.finalPropertyValue = property.defaults.currentMarketValue;
+            
+            // Also update corresponding yearly data if available
+            if (yearlyData && yearlyData.length > 0) {
+                // For each year, adjust the property value based on the appreciation rate
+                const appreciationRate = property.defaults.appreciationRate / 100;
+                
+                // Start with the current override value
+                let baseValue = property.defaults.currentMarketValue;
+                
+                // Adjust each year's property value
+                for (let i = 0; i < yearlyData.length; i++) {
+                if (i === 0) {
+                    // First year uses the exact override value
+                    yearlyData[i].propertyValue = baseValue;
+                } else {
+                    // Future years grow from the override value at the appreciation rate
+                    baseValue = baseValue * (1 + appreciationRate);
+                    yearlyData[i].propertyValue = baseValue;
+                }
+                }
+            }
+            }
+            
+            // Apply debt value override if enabled
+            if (property.defaults.useCurrentDebtValue && property.defaults.currentDebtValue !== undefined) {
+            // Update the loan balance in results
+            results.remainingLoan = property.defaults.currentDebtValue;
+            
+            // Also update the yearly data if available
+            if (yearlyData && yearlyData.length > 0) {
+                // For annuity loans, the payment amount (annuity) stays constant
+                // Get the original annuity from the first year payment
+                const originalAnnuity = results.annuity;
+                
+                // Get the loan terms
+                const interestRate = property.defaults.interestRate1 || property.defaults.interestRate || 4;
+                const interestRateDecimal = interestRate / 100;
+                
+                // Set the first year to the exact override value
+                const currentDebt = property.defaults.currentDebtValue;
+                yearlyData[0].loanBalance = currentDebt;
+                
+                // Interest is calculated on the current balance
+                yearlyData[0].interest = currentDebt * interestRateDecimal;
+                
+                // Principal is the annuity minus interest (but capped at remaining loan)
+                yearlyData[0].principal = Math.min(originalAnnuity - yearlyData[0].interest, currentDebt);
+                
+                // Payment is the original annuity (constant) or less if near the end of the loan
+                yearlyData[0].payment = Math.min(originalAnnuity, yearlyData[0].interest + yearlyData[0].principal);
+                
+                // Recalculate remaining years with a proper amortization schedule
+                let remainingLoan = currentDebt - yearlyData[0].principal;
+                
+                for (let i = 1; i < yearlyData.length; i++) {
+                // Make sure loan doesn't go negative
+                remainingLoan = Math.max(0, remainingLoan);
+                
+                // Set the loan balance for this year
+                yearlyData[i].loanBalance = remainingLoan;
+                
+                // If the loan is fully paid off
+                if (remainingLoan === 0) {
+                    yearlyData[i].interest = 0;
+                    yearlyData[i].principal = 0;
+                    yearlyData[i].payment = 0;
+                    continue;
+                }
+                
+                // Calculate interest based on the remaining loan
+                yearlyData[i].interest = remainingLoan * interestRateDecimal;
+                
+                // Principal is the annuity minus interest (but capped at the remaining loan)
+                yearlyData[i].principal = Math.min(originalAnnuity - yearlyData[i].interest, remainingLoan);
+                
+                // Payment is the original annuity (constant) or less if near the end of the loan
+                yearlyData[i].payment = Math.min(originalAnnuity, yearlyData[i].interest + yearlyData[i].principal);
+                
+                // Reduce the loan for the next year
+                remainingLoan = remainingLoan - yearlyData[i].principal;
+                }
+            }
+            }
+            
+            // Finally, recalculate equity for all years
+            if (yearlyData && yearlyData.length > 0) {
+            for (let i = 0; i < yearlyData.length; i++) {
+                // Equity is property value minus loan balance
+                yearlyData[i].equity = yearlyData[i].propertyValue - yearlyData[i].loanBalance;
+                
+                // Also recalculate cashflow before tax (if loan values changed)
+                if (property.defaults.useCurrentDebtValue) {
+                yearlyData[i].cashflowBeforeTax = yearlyData[i].cashflowBeforeFinancing - yearlyData[i].payment;
+                
+                // And update taxable income, which depends on principal payments
+                yearlyData[i].taxableIncome = yearlyData[i].cashflowBeforeTax + yearlyData[i].principal - 
+                                            yearlyData[i].buildingDepreciation - 
+                                            yearlyData[i].furnitureDepreciation - 
+                                            yearlyData[i].maintenanceDeduction -
+                                            (i === 0 ? yearlyData[i].firstYearDeductibleCosts : 0);
+                                            
+                // Recalculate tax aspects
+                const previousIncomeTax = yearlyData[i].previousTax;
+                const previousChurchTax = yearlyData[i].previousChurchTax;
+                
+                const totalTaxableIncome = Math.max(0, yearlyData[i].previousIncome + yearlyData[i].taxableIncome);
+                yearlyData[i].newTotalIncome = totalTaxableIncome;
+                
+                // Recalculate taxes
+                yearlyData[i].newTax = calculateGermanIncomeTax(totalTaxableIncome, taxInfo.taxStatus);
+                yearlyData[i].newChurchTax = taxInfo.hasChurchTax ? 
+                    calculateChurchTax(yearlyData[i].newTax, taxInfo.hasChurchTax, taxInfo.churchTaxRate) : 0;
+                
+                // Calculate tax savings
+                yearlyData[i].taxSavings = (previousIncomeTax - yearlyData[i].newTax) + 
+                                        (previousChurchTax - yearlyData[i].newChurchTax);
+                
+                // Finally recalculate cashflow after tax
+                yearlyData[i].cashflow = yearlyData[i].cashflowBeforeTax + yearlyData[i].taxSavings;
+                }
+            }
+            }
+            
+            // Update the final values in results
+            if (yearlyData && yearlyData.length > 0) {
+            const lastYear = yearlyData[yearlyData.length - 1];
+            results.finalPropertyValue = lastYear.propertyValue;
+            results.remainingLoan = lastYear.loanBalance;
+            results.finalEquity = lastYear.equity;
+            
+            // Update monthly cashflow based on first year
+            results.monthlyCashflow = yearlyData[0].cashflow / 12;
+            }
+            
+            return { purchaseData, ongoingData, results, yearlyData };
+        } catch (error) {
+            console.error("Error calculating property data:", error);
+            
+            // Return default values in case of error
+            const defaultPurchaseData = property.purchaseData || {} as PurchaseData;
+            const defaultOngoingData = property.ongoingData || {} as OngoingData;
+            const defaultResults = property.calculationResults || {} as CalculationResults;
+            const defaultYearlyData = property.yearlyData || [] as YearlyData[];
+            
+            return { 
+            purchaseData: defaultPurchaseData, 
+            ongoingData: defaultOngoingData, 
+            results: defaultResults, 
+            yearlyData: defaultYearlyData 
+            };
+        }
     }
-  }
+    /**
+     * Calculate years between purchase date and current date
+     */
+    static calculateYearsSincePurchase(purchaseDate: Date, currentDate: Date): number {
+    // For invalid dates, return 0
+    if (isNaN(purchaseDate.getTime()) || isNaN(currentDate.getTime())) {
+        return 0;
+    }
+    
+    // For future dates, return 0
+    if (purchaseDate > currentDate) {
+        return 0;
+    }
+    
+    // Calculate difference in years
+    let years = currentDate.getFullYear() - purchaseDate.getFullYear();
+    
+    // Adjust if we haven't reached the anniversary date yet
+    if (
+        currentDate.getMonth() < purchaseDate.getMonth() || 
+        (currentDate.getMonth() === purchaseDate.getMonth() && 
+        currentDate.getDate() < purchaseDate.getDate())
+    ) {
+        years--;
+    }
+    
+    return years;
+    }
   
   /**
    * Calculate combined data for a portfolio of properties

@@ -15,6 +15,7 @@ export interface Property {
 
 // Property-Standardwerte
 export interface PropertyDefaults {
+  purchaseDate: string;
   purchasePrice: number;
   bundesland: string;
   notaryRate: number;
@@ -30,6 +31,12 @@ export interface PropertyDefaults {
   
   // Eigenkapital
   downPayment: number;
+
+  // Current value overrides
+  currentMarketValue?: number; // New field: optional override for calculated property value
+  currentDebtValue?: number;   // New field: optional override for calculated loan balance
+  useCurrentMarketValue: boolean; // New field: flag to use current market value
+  useCurrentDebtValue: boolean;   // New field: flag to use current debt value
   
   // Ursprüngliche Finanzierungsfelder (für Abwärtskompatibilität)
   loanAmount?: number;

@@ -1,4 +1,4 @@
-// components/PropertyForm.tsx (refactored)
+// components/PropertyForm.tsx (Updated version)
 import { useState, useEffect } from 'react';
 import {
   TextInput,
@@ -16,6 +16,7 @@ import { PropertyPurchaseInfo } from './property/PropertyPurchaseInfo';
 import { PropertyFinancing } from './property/PropertyFinancing';
 import { PropertyOngoingCosts } from './property/PropertyOngoingCosts';
 import { PropertyAppreciation } from './property/PropertyAppreciation';
+import { PropertyCurrentValues } from './property/PropertyCurrentValues';
 import { usePropertyForm } from '../hooks/usePropertyValidation';
 
 interface PropertyFormProps {
@@ -61,6 +62,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       reset({
         name: property.name,
         purchasePrice: ensureNumber(property.defaults.purchasePrice),
+        purchaseDate: property.defaults.purchaseDate || new Date().toISOString().split('T')[0],
         bundesland: property.defaults.bundesland || DEFAULT_PROPERTY_VALUES.bundesland,
         notaryRate: ensureNumber(property.defaults.notaryRate),
         brokerRate: ensureNumber(property.defaults.brokerRate),
@@ -73,6 +75,13 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
         maintenanceDistribution: ensureNumber(property.defaults.maintenanceDistribution),
         financingType: property.defaults.financingType || 'loan',
         downPayment: ensureNumber(property.defaults.downPayment),
+        
+        // Current value fields
+        currentMarketValue: ensureNumber(property.defaults.currentMarketValue),
+        currentDebtValue: ensureNumber(property.defaults.currentDebtValue),
+        useCurrentMarketValue: !!property.defaults.useCurrentMarketValue,
+        useCurrentDebtValue: !!property.defaults.useCurrentDebtValue,
+        
         loanAmount1: ensureNumber(property.defaults.loanAmount1 || property.defaults.loanAmount || 0),
         interestRate1: ensureNumber(property.defaults.interestRate1 || property.defaults.interestRate || 0),
         repaymentRate1: ensureNumber(property.defaults.repaymentRate1 || property.defaults.repaymentRate || 0),
@@ -98,6 +107,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
       reset({
         name: 'Neue Immobilie',
         ...DEFAULT_PROPERTY_VALUES,
+        purchaseDate: new Date().toISOString().split('T')[0],
         loanAmount1: DEFAULT_PROPERTY_VALUES.purchasePrice - DEFAULT_PROPERTY_VALUES.downPayment,
       });
       
@@ -108,7 +118,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
   }, [property, reset]);
 
   const onSubmit = (data: any) => {
-  // Get validated property with all conversions applied
+    // Get validated property with all conversions applied
     const validatedProperty = getValidatedProperty(data);
     
     // Update financing options from component state
@@ -139,6 +149,7 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
             <Tabs.Tab value="finanzierung">Finanzierung</Tabs.Tab>
             <Tabs.Tab value="vermietung">Vermietung & laufende Kosten</Tabs.Tab>
             <Tabs.Tab value="rendite">Kapitalwert & Rendite</Tabs.Tab>
+            <Tabs.Tab value="aktuellewerte">Aktuelle Werte</Tabs.Tab>
           </Tabs.List>
 
           {/* Immobiliendaten Tab */}
@@ -184,6 +195,15 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
           {/* Kapitalwert & Rendite Tab */}
           <Tabs.Panel value="rendite" pt="xs">
             <PropertyAppreciation
+              watch={watch} 
+              setValue={setValue} 
+              errors={errors}
+            />
+          </Tabs.Panel>
+          
+          {/* Aktuelle Werte Tab */}
+          <Tabs.Panel value="aktuellewerte" pt="xs">
+            <PropertyCurrentValues
               watch={watch} 
               setValue={setValue} 
               errors={errors}

@@ -1,6 +1,6 @@
-// src/components/PropertyDetails.tsx
+// Updates to src/components/PropertyDetails.tsx
 import { useEffect } from 'react';
-import { Card, Title, Button, Group, Text, Grid, Divider } from '@mantine/core';
+import { Card, Title, Button, Group, Text, Grid, Divider, Badge } from '@mantine/core';
 import { Property } from '../lib/types';
 import { formatCurrency } from '../lib/utils/formatters';
 import { usePropertyStore } from '../store/PropertyContext';
@@ -41,6 +41,15 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
     );
   }
   
+  // Format purchase date
+  const purchaseDate = property.defaults.purchaseDate 
+    ? new Date(property.defaults.purchaseDate).toLocaleDateString('de-DE') 
+    : 'Nicht angegeben';
+  
+  // Determine if we're using override values
+  const usingMarketValue = property.defaults.useCurrentMarketValue && property.defaults.currentMarketValue;
+  const usingDebtValue = property.defaults.useCurrentDebtValue && property.defaults.currentDebtValue !== undefined;
+  
   return (
     <Card p="md" withBorder>
       <Group position="apart" mb="md">
@@ -55,6 +64,10 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
               <Grid.Col span={6}>
                 <Text size="sm" color="dimmed">Kaufpreis:</Text>
                 <Text>{formatCurrency(purchaseData.purchasePrice)}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="sm" color="dimmed">Kaufdatum:</Text>
+                <Text>{purchaseDate}</Text>
               </Grid.Col>
               <Grid.Col span={6}>
                 <Text size="sm" color="dimmed">Grunderwerbsteuer:</Text>
@@ -134,7 +147,12 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
             </div>
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed">Fremdkapital:</Text>
-              <Text>{formatCurrency(results.loanAmount)}</Text>
+              <Group spacing="xs">
+                <Text>{formatCurrency(results.loanAmount)}</Text>
+                {usingDebtValue && (
+                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                )}
+              </Group>
             </div>
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed">Monatliche Belastung (Bank):</Text>
@@ -155,12 +173,22 @@ export default function PropertyDetails({ property, onBack }: PropertyDetailsPro
             </div>
             <Divider my="sm" />
             <div>
-              <Text size="sm" color="dimmed">Immobilienwert nach Betrachtungszeitraum:</Text>
-              <Text>{formatCurrency(results.finalPropertyValue)}</Text>
+              <Text size="sm" color="dimmed">Immobilienwert:</Text>
+              <Group spacing="xs">
+                <Text>{formatCurrency(results.finalPropertyValue)}</Text>
+                {usingMarketValue && (
+                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                )}
+              </Group>
             </div>
             <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed">Restschuld nach Betrachtungszeitraum:</Text>
-              <Text>{formatCurrency(results.remainingLoan)}</Text>
+              <Text size="sm" color="dimmed">Restschuld:</Text>
+              <Group spacing="xs">
+                <Text>{formatCurrency(results.remainingLoan)}</Text>
+                {usingDebtValue && (
+                  <Badge color="blue" size="sm">Manuell angepasst</Badge>
+                )}
+              </Group>
             </div>
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed">Eigenkapitalentwicklung:</Text>

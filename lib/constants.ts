@@ -30,6 +30,7 @@ export const BUNDESLAENDER: Bundesland[] = [
 // Standardeinstellungen für neue Immobilien
 export const DEFAULT_PROPERTY_VALUES = {
   purchasePrice: 316500,
+  purchaseDate: new Date().toISOString().split('T')[0], 
   bundesland: "BY",
   notaryRate: 1.5,
   brokerRate: 3.0,
@@ -44,6 +45,12 @@ export const DEFAULT_PROPERTY_VALUES = {
   
   // Eigenkapital
   downPayment: 25000,
+
+    // New fields
+  currentMarketValue: 0, // Will be calculated based on appreciation
+  currentDebtValue: 0, // Will be calculated based on repayment
+  useCurrentMarketValue: false,
+  useCurrentDebtValue: false,
   
   // Ursprüngliche Finanzierungsfelder (für Abwärtskompatibilität)
   loanAmount: 291500, // purchasePrice - downPayment

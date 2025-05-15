@@ -1,4 +1,4 @@
-// lib/utils/validation.ts (updated)
+// lib/utils/validation.ts (update)
 import { PropertyDefaults, TaxInfo } from '../types';
 import { DEFAULT_PROPERTY_VALUES, CHURCH_TAX_RATES } from '../constants';
 
@@ -9,6 +9,7 @@ export class DataValidator {
     
     return {
       purchasePrice: this.ensureValidNumber(defaults.purchasePrice, 0, 1e9, defaultValues.purchasePrice),
+      purchaseDate: defaults.purchaseDate || defaultValues.purchaseDate,
       bundesland: defaults.bundesland || defaultValues.bundesland,
       notaryRate: this.ensureValidNumber(defaults.notaryRate, 0, 10, defaultValues.notaryRate),
       brokerRate: this.ensureValidNumber(defaults.brokerRate, 0, 10, defaultValues.brokerRate),
@@ -20,6 +21,12 @@ export class DataValidator {
       furnitureValue: this.ensureValidNumber(defaults.furnitureValue, 0, 1e9, defaultValues.furnitureValue),
       maintenanceDistribution: this.ensureValidNumber(defaults.maintenanceDistribution, 1, 5, defaultValues.maintenanceDistribution),
       financingType: defaults.financingType === 'cash' ? 'cash' : defaultValues.financingType,
+      
+      // Current value overrides
+      currentMarketValue: this.ensureValidNumber(defaults.currentMarketValue, 0, 1e9, 0),
+      currentDebtValue: this.ensureValidNumber(defaults.currentDebtValue, 0, 1e9, 0),
+      useCurrentMarketValue: defaults.useCurrentMarketValue !== undefined ? !!defaults.useCurrentMarketValue : false,
+      useCurrentDebtValue: defaults.useCurrentDebtValue !== undefined ? !!defaults.useCurrentDebtValue : false,
       
       // Eigenkapital
       downPayment: this.ensureValidNumber(defaults.downPayment, 0, 1e9, defaultValues.downPayment),

@@ -148,7 +148,8 @@ function calculateLoanPayments(loanAmount: number, interestRate: number, repayme
 export function calculateCashflow(
   property: Property,
   taxInfo: TaxInfo,
-  calculationPeriod: number = 10
+  calculationPeriod: number = 10,
+  yearsPassed: number = 0
 ): { results: CalculationResults; yearlyData: YearlyData[] } {
   try {
     // Kauf- und laufende Daten berechnen, falls nicht vorhanden
@@ -185,26 +186,62 @@ export function calculateCashflow(
     const churchTaxRate = ensureValidNumber(taxInfo.churchTaxRate, 0, 100, 9);
     
     // Finanzierung berechnen
-    const financingCosts = calculateFinancingCosts(property, calculationPeriod);
+    const financingCosts = calculateFinancingCosts(property, calculationPeriod + yearsPassed);
     let loanAmount = financingCosts.totalLoanAmount;
     let annuity = financingCosts.totalAnnuity;
 
     const totalCost = calculateTotalCost(property.defaults.purchasePrice, property.defaults.bundesland, property.defaults.notaryRate, property.defaults.brokerRate)
     
-    // Berechnung für das erste Jahr
-    let yearlyInterest = financingCosts.totalInitialInterest;
-    let yearlyPrincipal = financingCosts.totalInitialPrincipal;
-    let yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
-    let remainingLoan = loanAmount - yearlyPrincipal;
-        
+    // Initial property value (at purchase)
+    const initialImmobileOnlyPurchasePrice = purchaseData.landValue + purchaseData.buildingValue + purchaseData.maintenanceCost;
+    
+    // Adjust for years that have passed since purchase
+    let yearlyInterest = 0;
+    let yearlyPrincipal = 0;
+    let yearlyFinancingCosts = 0;
+    let remainingLoan = 0;
+    let currentPropertyValue = initialImmobileOnlyPurchasePrice;
+    let currentRent = ongoingData.effectiveRent;
+    
+    // Apply years passed to get current property value and loan balance
+    if (yearsPassed > 0 && yearsPassed < financingCosts.yearlyPayments.length) {
+      // Get the current loan status based on years passed
+      const currentLoanStatus = financingCosts.yearlyPayments[yearsPassed];
+      yearlyInterest = currentLoanStatus.interest;
+      yearlyPrincipal = currentLoanStatus.principal;
+      yearlyFinancingCosts = currentLoanStatus.payment;
+      remainingLoan = currentLoanStatus.loanBalance;
+      
+      // Apply appreciation to property value
+      currentPropertyValue = initialImmobileOnlyPurchasePrice * Math.pow(1 + appreciationRate, yearsPassed);
+      
+      // Apply rent increases
+      currentRent = ongoingData.effectiveRent * Math.pow(1 + rentIncreaseRate, yearsPassed);
+    } else {
+      // If no years passed, use the initial values
+      yearlyInterest = financingCosts.totalInitialInterest;
+      yearlyPrincipal = financingCosts.totalInitialPrincipal;
+      yearlyFinancingCosts = yearlyInterest + yearlyPrincipal;
+      remainingLoan = loanAmount - yearlyPrincipal;
+    }
+    
     // Sicherstellen, dass die Werte sinnvoll sind
     yearlyInterest = ensureValidNumber(yearlyInterest, 0, 1e9);
     yearlyPrincipal = ensureValidNumber(yearlyPrincipal, 0, 1e9);
     yearlyFinancingCosts = ensureValidNumber(yearlyFinancingCosts, 0, 1e9);
     remainingLoan = ensureValidNumber(remainingLoan, 0, 1e9);
     
+    // Overrides for current values if provided
+    if (property.defaults.useCurrentMarketValue && property.defaults.currentMarketValue) {
+      currentPropertyValue = property.defaults.currentMarketValue;
+    }
+    
+    if (property.defaults.useCurrentDebtValue && property.defaults.currentDebtValue !== undefined) {
+      remainingLoan = property.defaults.currentDebtValue;
+    }
+    
     // Cashflow vor Steuern berechnen
-    const effectiveRent = ensureValidNumber(ongoingData.effectiveRent, 0, 1e7, 14400);
+    const effectiveRent = ensureValidNumber(currentRent, 0, 1e7, 14400);
     const totalOngoing = ensureValidNumber(ongoingData.totalOngoing, 0, 1e7, 2000);
     const cashflowBeforeTax = effectiveRent - totalOngoing - yearlyFinancingCosts;
     
@@ -213,13 +250,26 @@ export function calculateCashflow(
     
     // Gesamte Abschreibung berechnen
     const annualMaintenance = ensureValidNumber(purchaseData.annualMaintenance, 0, 1e7, 7000);
+    
+    // Adjust maintenance deduction based on years passed
+    let currentMaintenanceDeduction = 0;
+    const maintenanceDistribution = ensureValidNumber(purchaseData.maintenanceDistribution, 1, 5, 1);
+    
+    if (yearsPassed < maintenanceDistribution) {
+      // If we're still within the maintenance distribution period
+      currentMaintenanceDeduction = annualMaintenance;
+    }
+    
+    // Adjust broker consulting costs based on years passed
+    const currentBrokerConsultingCosts = yearsPassed === 0 ? brokerConsultingCosts : 0;
+    
     const totalDepreciation = annualBuildingDepreciation + annualFurnitureDepreciation + 
-                           annualMaintenance + brokerConsultingCosts;
+                         currentMaintenanceDeduction + currentBrokerConsultingCosts;
     
     // Zu versteuerndes Einkommen berechnen
     const taxableIncome = cashflowBeforeTax + yearlyPrincipal - annualBuildingDepreciation - 
-                       annualFurnitureDepreciation - annualMaintenance - 
-                       brokerConsultingCosts;
+                     annualFurnitureDepreciation - currentMaintenanceDeduction - 
+                     currentBrokerConsultingCosts;
     
     // Steuern berechnen
     const previousIncomeTax = calculateGermanIncomeTax(annualIncome, taxStatus);
@@ -242,9 +292,6 @@ export function calculateCashflow(
     // Jährliche Daten initialisieren
     const yearlyData: YearlyData[] = [];
 
-    // Der Kaufpreis ohne Möbel ist die Summe aus Grundstück und Gebäude
-    const immobileOnlyPurchasePrice = purchaseData.landValue + purchaseData.buildingValue + purchaseData.maintenanceCost;
-    
     // Erstes Jahr hinzufügen
     const purchasePrice = ensureValidNumber(purchaseData.purchasePrice, 1000, 1e9, 316500);
     yearlyData.push({
@@ -257,10 +304,10 @@ export function calculateCashflow(
       loanBalance: remainingLoan,
       buildingDepreciation: annualBuildingDepreciation,
       furnitureDepreciation: annualFurnitureDepreciation,
-      maintenanceDeduction: annualMaintenance,
+      maintenanceDeduction: currentMaintenanceDeduction,
       totalDepreciation: totalDepreciation,
       taxableIncome: taxableIncome,
-      firstYearDeductibleCosts: brokerConsultingCosts,
+      firstYearDeductibleCosts: currentBrokerConsultingCosts,
       previousIncome: annualIncome,
       previousTax: previousIncomeTax,
       previousChurchTax: previousChurchTax,
@@ -271,9 +318,9 @@ export function calculateCashflow(
       cashflow: cashflowAfterTax,
       cashflowBeforeTax: cashflowBeforeTax,
       // WICHTIGE ÄNDERUNG: Immobilienwert ohne Möbelwert
-      propertyValue: immobileOnlyPurchasePrice,
-      equity: financingType === 'loan' ? immobileOnlyPurchasePrice - remainingLoan : immobileOnlyPurchasePrice,
-      initialEquity: financingType === 'loan' ? downPayment : immobileOnlyPurchasePrice,
+      propertyValue: currentPropertyValue,
+      equity: financingType === 'loan' ? currentPropertyValue - remainingLoan : currentPropertyValue,
+      initialEquity: financingType === 'loan' ? downPayment : currentPropertyValue,
       // Zusätzliche detaillierte Daten
       vacancyRate: ensureValidNumber(ongoingData.vacancyRate, 0, 100, 3),
       propertyTax: ensureValidNumber(ongoingData.propertyTax, 0, 1e6, 500),
@@ -283,10 +330,10 @@ export function calculateCashflow(
       cashflowBeforeFinancing: effectiveRent - totalOngoing
     });
 
-    // Zukünftige Jahre berechnen
-    let currentRent = effectiveRent;
-    let currentPropertyValue = immobileOnlyPurchasePrice;
-    let currentRemainingLoan = remainingLoan;
+    // Future years - starting from current state based on years passed
+    let futureRent = currentRent;
+    let futurePropertyValue = currentPropertyValue;
+    let futureRemainingLoan = remainingLoan;
 
     // WICHTIGE ÄNDERUNG: Die Bewirtschaftungskosten fix halten
     // Diese Werte werden nicht mehr jährlich erhöht
@@ -298,25 +345,25 @@ export function calculateCashflow(
     
     for (let year = 2; year <= calculationPeriod; year++) {
       // Nur die Miete steigt mit der Inflation
-      currentRent = ensureValidNumber(currentRent * (1 + rentIncreaseRate), 0, 1e7);
+      futureRent = ensureValidNumber(futureRent * (1 + rentIncreaseRate), 0, 1e7);
       
       // ÄNDERUNG: Bewirtschaftungskosten bleiben konstant
       const currentOngoingCosts = fixedOngoingCosts;
       
       // Cashflow vor Finanzierung
-      const currentCashflowBeforeFinancing = ensureValidNumber(currentRent - currentOngoingCosts, -1e7, 1e7);
+      const currentCashflowBeforeFinancing = ensureValidNumber(futureRent - currentOngoingCosts, -1e7, 1e7);
       
       // Finanzierungskosten
-      const yearIndex = year - 1;
+      const yearIndex = year - 1 + yearsPassed;
       let yearlyInterest = 0;
       let yearlyPrincipal = 0;
       let yearlyFinancingCosts = 0;
       
-      if (financingType === 'loan') {
+      if (financingType === 'loan' && yearIndex < financingCosts.yearlyPayments.length) {
         yearlyInterest = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].interest, 0, 1e7);
         yearlyPrincipal = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].principal, 0, 1e7);
         yearlyFinancingCosts = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].payment, 0, 1e7);
-        currentRemainingLoan = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].loanBalance, 0, 1e9);
+        futureRemainingLoan = ensureValidNumber(financingCosts.yearlyPayments[yearIndex].loanBalance, 0, 1e9);
       }
       
       // Cashflow vor Steuern
@@ -328,7 +375,7 @@ export function calculateCashflow(
       
       // Erhaltungsaufwand nur für den angegebenen Verteilungszeitraum
       const maintenanceDistribution = ensureValidNumber(purchaseData.maintenanceDistribution, 1, 5, 1);
-      const yearlyMaintenance = year <= maintenanceDistribution ? 
+      const yearlyMaintenance = (year + yearsPassed) <= maintenanceDistribution ? 
                              ensureValidNumber(annualMaintenance, 0, 1e7) : 0;
       const yearlyTotalDepreciation = ensureValidNumber(
         annualBuildingDepreciation + annualFurnitureDepreciation + yearlyMaintenance, 
@@ -365,24 +412,24 @@ export function calculateCashflow(
       );
       
       // Immobilienwert mit Wertsteigerung
-      currentPropertyValue = ensureValidNumber(
-        immobileOnlyPurchasePrice * Math.pow(1 + appreciationRate, year - 1), 
+      futurePropertyValue = ensureValidNumber(
+        currentPropertyValue * Math.pow(1 + appreciationRate, year - 1), 
         0, 
         1e9
       );
       
       // Eigenkapital
-      const yearlyEquity = ensureValidNumber(currentPropertyValue - currentRemainingLoan, -1e9, 1e9);
+      const yearlyEquity = ensureValidNumber(futurePropertyValue - futureRemainingLoan, -1e9, 1e9);
       
       // Jährliche Daten speichern
       yearlyData.push({
         year: year,
-        rent: currentRent,
+        rent: futureRent,
         ongoingCosts: currentOngoingCosts,
         interest: yearlyInterest,
         principal: yearlyPrincipal,
         payment: yearlyFinancingCosts,
-        loanBalance: currentRemainingLoan,
+        loanBalance: futureRemainingLoan,
         buildingDepreciation: annualBuildingDepreciation,
         furnitureDepreciation: annualFurnitureDepreciation,
         maintenanceDeduction: yearlyMaintenance,
@@ -398,7 +445,7 @@ export function calculateCashflow(
         taxSavings: yearlyTaxSavings,
         cashflow: yearlyCashflowAfterTax,
         cashflowBeforeTax: currentCashflowBeforeTax,
-        propertyValue: currentPropertyValue,
+        propertyValue: futurePropertyValue,
         equity: yearlyEquity,
         initialEquity: financingType === 'loan' ? downPayment : purchasePrice,
         // Zusätzliche detaillierte Daten - WICHTIG: Konstante Werte verwenden
@@ -419,9 +466,9 @@ export function calculateCashflow(
       annuity: annuity,
       monthlyPayment: ensureValidNumber(annuity / 12, 0, 1e7),
       monthlyCashflow: ensureValidNumber(monthlyCashflow, -1e7, 1e7),
-      finalPropertyValue: ensureValidNumber(yearlyData[calculationPeriod - 1].propertyValue, 0, 1e9),
-      remainingLoan: ensureValidNumber(yearlyData[calculationPeriod - 1].loanBalance, 0, 1e9),
-      finalEquity: ensureValidNumber(yearlyData[calculationPeriod - 1].equity, -1e9, 1e9),
+      finalPropertyValue: ensureValidNumber(futurePropertyValue, 0, 1e9),
+      remainingLoan: ensureValidNumber(futureRemainingLoan, 0, 1e9),
+      finalEquity: ensureValidNumber(futurePropertyValue - futureRemainingLoan, -1e9, 1e9),
       initialEquity: financingType === 'loan' ? downPayment : totalCost  // Verwende den korrigierten Wert
     };
 
