@@ -3,7 +3,6 @@ import { Property, PurchaseData, OngoingData, CalculationResults, YearlyData, Ta
 import { calculateGermanIncomeTax, calculateChurchTax } from './taxCalculator';
 import { calculatePurchase } from './purchaseCalculator';
 import { calculateOngoing } from './ongoingCalculator';
-import { BUNDESLAENDER } from '../constants';
 import { ensureValidNumber } from '../utils/formatters';
 import { calculateTotalCost } from '../utils/calculations';
 
@@ -156,6 +155,9 @@ export function calculateCashflow(
     const purchaseData = property.purchaseData || calculatePurchase(property);
     const ongoingData = property.ongoingData || calculateOngoing(property);
     
+    // Important: Using the monthly rent from the form as the CURRENT rent, not purchase rent
+    // This means we DON'T apply rent increases for years that have passed
+    
     // Finanzierungsdetails - Sichere Zahlenkonvertierung
     const financingType = property.defaults.financingType;
     const downPayment = ensureValidNumber(property.defaults.downPayment, 0, 1e9, 25000);
@@ -201,6 +203,9 @@ export function calculateCashflow(
     let yearlyFinancingCosts = 0;
     let remainingLoan = 0;
     let currentPropertyValue = initialImmobileOnlyPurchasePrice;
+    
+    // IMPORTANT CHANGE: Do NOT adjust the rent from ongoingData for past years
+    // Use the ongoingData.effectiveRent directly as the CURRENT rent
     let currentRent = ongoingData.effectiveRent;
     
     // Apply years passed to get current property value and loan balance
@@ -215,8 +220,8 @@ export function calculateCashflow(
       // Apply appreciation to property value
       currentPropertyValue = initialImmobileOnlyPurchasePrice * Math.pow(1 + appreciationRate, yearsPassed);
       
-      // Apply rent increases
-      currentRent = ongoingData.effectiveRent * Math.pow(1 + rentIncreaseRate, yearsPassed);
+      // Important: We DON'T apply rent increases for past years anymore
+      // currentRent already represents the current rent from the form
     } else {
       // If no years passed, use the initial values
       yearlyInterest = financingCosts.totalInitialInterest;
@@ -344,7 +349,7 @@ export function calculateCashflow(
     const fixedOngoingCosts = fixedPropertyTax + fixedManagementFee + fixedMaintenanceReserve + fixedInsurance;
     
     for (let year = 2; year <= calculationPeriod; year++) {
-      // Nur die Miete steigt mit der Inflation
+      // NOW we apply rent increases going forward from the current rent
       futureRent = ensureValidNumber(futureRent * (1 + rentIncreaseRate), 0, 1e7);
       
       // ÄNDERUNG: Bewirtschaftungskosten bleiben konstant
